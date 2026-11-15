@@ -449,5 +449,23 @@ console.log('\n8) Plan de la misión: lugar y órbita');
   resetRecords();
 }
 
+console.log('\n12) Un motor que falla al alunizar');
+{
+  const game = newGame(22);
+  for (let i = 0; i < 100 && legs[game.data().flight.legIndex]?.id !== 'descent' && game.data().flight.phase !== 'over'; i++) fly(game, { maxSteps: 1 });
+  const descentIndex = legs.findIndex((leg) => leg.id === 'descent');
+  check('la prueba llega al alunizaje', game.data().flight.legIndex === descentIndex && game.data().flight.phase === 'ready');
+  // Todos los motores que pueden frenar fallan seguro en este encendido.
+  for (const stage of game.ship().stages) for (const item of stage.items) if (item.kind === 'engine') item.failureRate = 1;
+  game.ship().perks = {};
+  const result = game.send(ana, { type: 'flight:burn', dv: legs[descentIndex].dv, aim: 0.9, touchdown: 'soft' });
+  const flight = game.data().flight;
+  check('el alunizaje pilotado hasta el suelo termina el descenso aunque falle un motor', !result.error && flight.legIndex > descentIndex);
+  check('la falla no se pierde: la nave toca el suelo más fuerte y se cuenta en la bitácora',
+    flight.touchdown === 'hard' && flight.events.some((event) => event.text.includes('falló en los últimos metros del descenso')));
+  check('no queda una emergencia de motor a mitad de un descenso ya hecho', flight.emergency?.kind !== 'engine');
+  check('el motor que falló queda roto', game.ship().stages.some((stage) => stage.items.some((item) => item.kind === 'engine' && item.failed)));
+}
+
 console.log(failures === 0 ? `\nTODO OK ✅ (${checks} verificaciones del vuelo)` : `\n${failures} verificación(es) fallaron ❌`);
 process.exit(failures === 0 ? 0 : 1);

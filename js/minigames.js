@@ -97,7 +97,8 @@ export const runGame = ({ title, how = '', keysHint = '', width = 640, height = 
     ctx.lineJoin = 'round';
 
     const keys = new Set();
-    const pointer = { x: width / 2, y: height / 2, down: false };
+    /** @type {{ x: number, y: number, down: boolean, points: Map<number, { x: number, y: number }> }} */
+    const pointer = { x: width / 2, y: height / 2, down: false, points: new Map() };
     let ending = null; // { text, tone, until, result }
     let finished = false;
     let stop = () => {};
@@ -140,24 +141,38 @@ export const runGame = ({ title, how = '', keysHint = '', width = 640, height = 
       keys.delete(event.code);
       if (!ending) game.key?.(event.code, false);
     };
+    // Varios dedos a la vez: en un teléfono se mantiene EMPUJE con un dedo y se gira con otro.
+    // `pointer.points` guarda cada dedo apretado (id → posición); `pointer.x/y` es el último que se movió
+    // (lo usan los juegos de arrastrar) y `pointer.down` es true mientras quede alguno apretado.
+    // Antes había un solo puntero: el segundo dedo pisaba la posición del primero y el botón que el
+    // primero mantenía (por ejemplo EMPUJE) se soltaba solo, y el motor se apagaba.
     const toLocal = (event) => {
       const box = canvas.getBoundingClientRect();
-      pointer.x = ((event.clientX - box.left) / box.width) * width;
-      pointer.y = ((event.clientY - box.top) / box.height) * height;
+      const x = ((event.clientX - box.left) / box.width) * width;
+      const y = ((event.clientY - box.top) / box.height) * height;
+      pointer.x = x;
+      pointer.y = y;
+      return { x, y };
     };
     canvas.addEventListener('pointerdown', (event) => {
-      toLocal(event);
+      pointer.points.set(event.pointerId, toLocal(event));
       pointer.down = true;
-      canvas.setPointerCapture?.(event.pointerId);
+      try {
+        canvas.setPointerCapture?.(event.pointerId); // seguir el dedo aunque salga del lienzo
+      } catch {
+        // Puntero que el navegador ya no considera activo: se sigue igual, sin captura.
+      }
       if (!ending) game.pointer?.('down', pointer.x, pointer.y);
     });
     canvas.addEventListener('pointermove', (event) => {
-      toLocal(event);
+      const at = toLocal(event);
+      if (pointer.points.has(event.pointerId)) pointer.points.set(event.pointerId, at);
       if (!ending) game.pointer?.('move', pointer.x, pointer.y);
     });
     const release = (event) => {
       toLocal(event);
-      pointer.down = false;
+      pointer.points.delete(event.pointerId);
+      pointer.down = pointer.points.size > 0;
       if (!ending) game.pointer?.('up', pointer.x, pointer.y);
     };
     canvas.addEventListener('pointerup', release);

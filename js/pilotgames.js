@@ -21,9 +21,12 @@ const held = (keys, ...codes) => codes.some((code) => keys.has(code));
 
 /** Botones dibujados en el lienzo, para jugar con mouse o pantalla táctil. */
 const touchButtons = (ctx, pointer, buttons) => ({
+  // Un botón está apretado si CUALQUIER dedo (o el mouse) está sobre él: se puede empujar y girar a la vez.
   pressed: (id) => {
     const b = buttons.find((button) => button.id === id);
-    return Boolean(b && pointer.down && pointer.x >= b.x && pointer.x <= b.x + b.w && pointer.y >= b.y && pointer.y <= b.y + b.h);
+    if (!b || !pointer.down) return false;
+    const inside = (p) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+    return pointer.points?.size ? [...pointer.points.values()].some(inside) : inside(pointer);
   },
   draw: (active) => {
     for (const b of buttons) {
@@ -397,7 +400,9 @@ export const playLander = ({ title, budget, onProgress = () => {} }) =>
         const parX = W - 230 + 210 * (1 - PAR / FUEL);
         ctx.fillStyle = INK.paper;
         ctx.fillRect(parX - 1, 28, 2, 24);
-        text(ctx, used > PAR ? 'gastando de más: ese combustible es del regreso' : `verde = toca suave (caída < ${SOFT_DOWN}, costado < ${SOFT_SIDE})`, W - 20, 64, { size: 12, weight: 600, align: 'right', color: used > PAR ? INK.coral : withAlpha(INK.paper, 0.85) });
+        const empty = used >= FUEL;
+        text(ctx, empty ? 'SIN COMBUSTIBLE PARA FRENAR: el motor ya no empuja' : used > PAR ? 'gastando de más: ese combustible es del regreso' : `verde = toca suave (caída < ${SOFT_DOWN}, costado < ${SOFT_SIDE})`, W - 20, 64, { size: 12, weight: 700, align: 'right', color: used > PAR ? INK.coral : withAlpha(INK.paper, 0.85) });
+        if (empty) text(ctx, 'SIN COMBUSTIBLE', W / 2, 40, { size: 22, color: INK.coral });
         buttons.draw((id) => buttons.pressed(id) || (id === 'thrust' && thrust === 1));
       },
     };

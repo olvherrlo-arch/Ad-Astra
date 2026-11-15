@@ -40,6 +40,20 @@ const el = (tag, className, text) => {
   return node;
 };
 
+/**
+ * Copia el nombre de cada columna en sus celdas (`data-label`). En pantallas angostas la tabla se
+ * muestra como tarjetas apiladas (css: .versions en @media) y cada dato lleva su nombre al lado: así el
+ * botón Comprar o Devolver siempre queda a la vista en un teléfono.
+ */
+const labelCells = (table) => {
+  const labels = [...table.querySelectorAll('thead th')].map((th) => th.textContent);
+  for (const row of table.querySelectorAll('tbody tr')) {
+    if (row.classList.contains('request-row')) continue;
+    [...row.children].forEach((cell, index) => { if (labels[index]) cell.setAttribute('data-label', labels[index]); });
+  }
+  return table;
+};
+
 const tierBadge = (tierId) => {
   const tier = tierOf(tierId);
   const badge = el('span', 'tier-badge', `${tier.mark} ${tier.name}`);
@@ -161,7 +175,7 @@ export const mountMarket = (container) => {
           body.append(noteRow);
         }
       }
-      card.append(table);
+      card.append(labelCells(table));
       return card;
     });
 
@@ -319,7 +333,7 @@ export const mountMarket = (container) => {
 
     const dry = eco.inventory.reduce((total, item) => total + resolvePart(item).mass, 0);
     const summary = el('p', 'hold-summary', `${eco.inventory.length} piezas · ${mass(dry)} en seco (sin combustible).`);
-    panel.replaceChildren(needs, table, summary);
+    panel.replaceChildren(needs, labelCells(table), summary);
   };
 
   const render = () => {

@@ -485,9 +485,19 @@ const burn = (work, leg, action, actor) => {
 
   // Cada encendido puede romper un motor. Con un defecto oculto, más seguido.
   const risk = (flight.prep?.trim ? BONUS.trim : 1) * (ship.perks?.engines ? BONUS.engines : 1);
-  const failing = enginesOf(ship.stages[0]).find((engine) => roll(work) < engine.failureRate * risk);
+  // Alunizando, frena la etapa que tenga combustible y motores (la misma que usa el bucle de abajo).
+  const burning = landed ? (ship.stages.find(canFire) ?? ship.stages[0]) : ship.stages[0];
+  const failing = enginesOf(burning).find((engine) => roll(work) < engine.failureRate * risk);
   flight.prep = { ...NO_PREP }; // los preparativos se gastan en este encendido
-  if (failing) target *= 0.25 + roll(work) * 0.5;
+  // En un encendido normal, el motor que falla corta el empuje a mitad de camino (queda Δv por hacer).
+  // En el alunizaje no: el piloto ya voló la bajada hasta tocar el suelo, así que el descenso termina
+  // igual, pero el motor que falla en los últimos metros hace que la nave toque el suelo más fuerte.
+  if (failing && !landed) target *= 0.25 + roll(work) * 0.5;
+  if (failing && landed) {
+    failing.failed = true;
+    flight.touchdown = { soft: 'hard', hard: 'crash', crash: 'crash' }[flight.touchdown] ?? 'hard';
+    note(work, `El ${failing.name.toLowerCase()} falló en los últimos metros del descenso: la nave tocó el suelo más fuerte de lo que se pilotó.`, 'warn', true);
+  }
 
   // Quemar, soltando etapas a medida que se vacían.
   let done = 0;
@@ -526,7 +536,7 @@ const burn = (work, leg, action, actor) => {
   note(work, `${actor.name} encendió los motores: ${number(done)} m/s (pidió ${number(command)}).`
     + (overshoot > 1 ? ` Se pasó por ${number(overshoot)} m/s: combustible gastado de más.` : ''), 'info');
 
-  if (failing) {
+  if (failing && !landed) {
     failing.failed = true;
     raiseEmergency(work, {
       kind: 'engine', uid: failing.uid,

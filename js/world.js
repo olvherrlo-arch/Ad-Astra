@@ -125,6 +125,7 @@ export const mountWorld = (container) => {
   let moveTarget = null; //    punto hacia el que camina ahora (clic en el piso o en un puesto)
   let route = []; //           puntos que siguen después: el camino pasa por las puertas
   let useOnArrival = null; //  id del puesto que se quiere usar al llegar (clic en un puesto)
+  let panelOpenedAt = 0; //    cuándo se abrió el panel (para ignorar el clic fantasma de un toque)
   let stuck = 0;
   let lastSent = { at: 0, x: 0, y: 0, moving: false, act: '' };
   let busy = false; //         hay un minijuego abierto
@@ -560,6 +561,7 @@ export const mountWorld = (container) => {
     canvas.focus?.();
   };
   const openPanel = (names) => {
+    panelOpenedAt = performance.now();
     openTools = names;
     pressed.clear();
     moveTarget = null;
@@ -1359,6 +1361,15 @@ export const mountWorld = (container) => {
     else use(action);
   });
   for (const type of ['pointerup', 'pointerleave', 'pointercancel']) promptButton.addEventListener(type, () => { holding = null; });
+  // En un teléfono, después de un toque el navegador manda un "clic" de compatibilidad en el mismo
+  // lugar. Si ese toque abrió el panel (mercado, constructor…), el clic caía sobre lo que quedó debajo
+  // del dedo: abría o cerraba una ficha, o tocaba un botón. Se ignoran los clics del primer instante.
+  panel.addEventListener('click', (event) => {
+    if (performance.now() - panelOpenedAt < 450) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
+  }, true);
 
   syncActors(true);
   const offs = [

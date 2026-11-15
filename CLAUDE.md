@@ -6,7 +6,7 @@ El equipo habla español: textos del juego, comentarios y respuestas en español
 ## Correr y probar
 - `npm run dev`: servidor + página en http://localhost:3000 (node --watch).
 - `npm test`: 101 pruebas de física, catálogo y cohete (tests/physics.js), 56 del mercado (tests/market.js),
-  58 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 105 del vuelo, el puntaje, el reintento, el plan, la ciencia, la dificultad y los récords
+  58 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 110 del vuelo, el puntaje, el reintento, el plan, la ciencia, la dificultad y los récords
   (tests/flight.js, vuela partidas con semillas fijas) y las de jugadores simulados (tests/simulate.js).
   tests/helpers.js tiene ayudas comunes (hacer tareas del mundo sin red).
   Todas deben terminar en "TODO OK ✅".
@@ -141,8 +141,16 @@ Cada rol hace cosas con las manos, la cooperación es necesaria y nadie espera s
   llega como `actor.difficulty` desde `room.settings.difficulty`; queda en `data.difficulty`.
 - Récords: server/records.js (`useRecordFile()` solo al arrancar el servidor; las pruebas no escriben), evento
   `records:list`, pantalla js/recordsview.js (botón Records del menú). `final.place` = puesto. `data/` en .gitignore.
+- Teléfonos: los minijuegos (js/minigames.js) siguen VARIOS dedos (`pointer.points`); los botones del lienzo
+  (`touchButtons` en js/pilotgames.js) cuentan como apretados si cualquier dedo está encima. Antes un segundo
+  dedo soltaba EMPUJE y el motor se apagaba. El panel del mundo ignora clics los primeros 450 ms
+  (`panelOpenedAt`: el clic de compatibilidad tras un toque caía en el mercado). En ≤640 px las tablas
+  `.versions` del mercado se apilan como tarjetas (`labelCells` pone `data-label`).
+- Motor que falla al ALUNIZAR (encendido con `touchdown`): ya no recorta el descenso; el tramo termina y el
+  toque empeora un paso (soft→hard→crash). En los demás encendidos sigue la emergencia de motor.
+- Para emular toques en pruebas de navegador: PointerEvent con `pointerType: 'touch'` y distintos `pointerId`.
 - Agregar piezas al catálogo cambia el azar con semilla del mercado: las pruebas que dependen de una tirada
-  pueden necesitar otra semilla. Vuelo y puntaje: 105 verificaciones.
+  pueden necesitar otra semilla. Vuelo y puntaje: 110 verificaciones.
 
 ## Actualización de experiencia (UPDATE MASTER PROMPT del usuario: tutoriales, cinemáticas, constructor animado, UI)
 Orden pedido: 1 UI más simple → 2 tutoriales → 3 cinemáticas → 4 constructor animado → 5 pulido.
