@@ -6,7 +6,7 @@ El equipo habla español: textos del juego, comentarios y respuestas en español
 ## Correr y probar
 - `npm run dev`: servidor + página en http://localhost:3000 (node --watch).
 - `npm test`: 101 pruebas de física, catálogo y cohete (tests/physics.js), 56 del mercado (tests/market.js),
-  58 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 85 del vuelo, el puntaje y el reintento
+  58 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 105 del vuelo, el puntaje, el reintento, el plan, la ciencia, la dificultad y los récords
   (tests/flight.js, vuela partidas con semillas fijas) y las de jugadores simulados (tests/simulate.js).
   tests/helpers.js tiene ayudas comunes (hacer tareas del mundo sin red).
   Todas deben terminar en "TODO OK ✅".
@@ -128,7 +128,21 @@ Cada rol hace cosas con las manos, la cooperación es necesaria y nadie espera s
 - SOLO (menú): `session.solo = true` + createRoom; js/hud.js despega sola si el anfitrión está solo.
 - Rediseñar y volver a volar: acción `mission:retry` (anfitrión, solo en debrief) → etapa build, `flight: null`,
   `attempt + 1`, se conservan cohete, bodega y créditos; `score.beforeLaunch` (foto al despegar) se restaura.
-  Botón en Resultados y en la palanca. Pruebas en tests/flight.js §7. Vuelo y puntaje: 85 verificaciones.
+  Botón en Resultados y en la palanca. Pruebas en tests/flight.js §7.
+- Plan de la misión: `js/missionplan.js` (SITES, ORBITS, `planOf(data)`), `data.plan` (con `decided`), acción
+  `plan:set {site?, orbit?}` (Vuelo o Ciencia, antes del despegue). `moonFlightPlan(plan)` calcula el Δv real con la
+  altura de la órbita; el lugar cambia `landingFactor`, `sun`, `legsRisk` (patas) y `science`. SIEMPRE usar
+  `missionFor(data)` (js/missions.js) en vez de `getMission(...).flightPlan`. Pantalla `js/planview.js`
+  (pestaña "Plan de la misión" desde el tablero).
+- Ciencia: `js/science.js` `scienceReport({ items, leg, relay, saving })`; piezas con `science`, `dataRate`,
+  `downlink` (nuevas: camera, seismometer, antenna-ka). El servidor la calcula al completar el tramo `surface`
+  (`flight.science`); el constructor la estima; el puntaje premia a Ciencia y el resumen la muestra.
+- Dificultad: `DIFFICULTY` en server/flight.js (presupuesto al iniciar, `failureRate` y `guidanceFactor` en vuelo);
+  llega como `actor.difficulty` desde `room.settings.difficulty`; queda en `data.difficulty`.
+- Récords: server/records.js (`useRecordFile()` solo al arrancar el servidor; las pruebas no escriben), evento
+  `records:list`, pantalla js/recordsview.js (botón Records del menú). `final.place` = puesto. `data/` en .gitignore.
+- Agregar piezas al catálogo cambia el azar con semilla del mercado: las pruebas que dependen de una tirada
+  pueden necesitar otra semilla. Vuelo y puntaje: 105 verificaciones.
 
 ## Actualización de experiencia (UPDATE MASTER PROMPT del usuario: tutoriales, cinemáticas, constructor animado, UI)
 Orden pedido: 1 UI más simple → 2 tutoriales → 3 cinemáticas → 4 constructor animado → 5 pulido.

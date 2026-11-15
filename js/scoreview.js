@@ -9,6 +9,8 @@
  */
 import { drawAstronaut } from './character.js';
 import { isHost, on, sendAction, session } from './connection.js';
+import { ORBITS, SITES } from './missionplan.js';
+import { number } from './partinfo.js';
 import { reducedMotion } from './settings.js';
 import { ROLES, roleName } from './shared.js';
 
@@ -76,7 +78,7 @@ export const mountScore = (box) => {
       return;
     }
     // Solo se redibuja si cambió algo (así los números no vuelven a contar desde cero).
-    const key = JSON.stringify([final.teamPoints, session.state.data.attempt, session.room?.hostId, session.room?.players.map((p) => [p.id, p.connected, p.name])]);
+    const key = JSON.stringify([final.teamPoints, final.place, session.state.data.attempt, session.room?.hostId, session.room?.players.map((p) => [p.id, p.connected, p.name])]);
     if (key === shownKey) return;
     const firstTime = shownKey === '';
     shownKey = key;
@@ -103,7 +105,17 @@ export const mountScore = (box) => {
     };
     list('Lo mejor', final.highlights, 'score-good');
     list('Complicaciones', final.mistakes, 'score-bad');
-    team.append(head, totalBox, objectives, lists);
+    // La ciencia que llegó a la Tierra y el plan elegido (lugar, órbita, dificultad).
+    const science = final.science;
+    const facts = el('div', 'score-objectives score-science');
+    if (science && science.max > 0) {
+      facts.append(el('span', '', `Ciencia: ${science.value} de ${science.max} pts · ${number(science.sent)} de ${number(science.generated)} MB enviados`), bar(science.value / science.max, '#f3b641'));
+    } else {
+      facts.append(el('span', '', 'Ciencia: no viajó ningún instrumento científico'));
+    }
+    const planLine = el('p', 'score-plan', [final.plan ? `${SITES[final.plan.site]?.name ?? ''} · ${ORBITS[final.plan.orbit]?.name ?? ''}` : '', `Dificultad: ${final.difficulty ?? 'Normal'}`].filter(Boolean).join(' · '));
+    if (final.place) planLine.textContent += ` · Puesto ${final.place} en la tabla de récords`;
+    team.append(head, totalBox, objectives, facts, planLine, lists);
     countUp(total, final.teamPoints);
 
     // ---------- Cada tripulante (en el orden de los roles, sin ranking) ----------

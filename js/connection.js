@@ -245,6 +245,15 @@ export const createRoom = (playerName) => enter(EVENTS.ROOM_CREATE, { playerName
 export const joinRoom = (code, playerName) => enter(EVENTS.ROOM_JOIN, { code, playerName });
 
 /** Salas públicas con lugar: [{ code, hostName, players, maxPlayers }] */
+/** La tabla de récords (las mejores misiones de este servidor), o null si no respondió. */
+export const listRecords = async () => {
+  try {
+    return await socket.timeout(ACK_TIMEOUT_MS).emitWithAck(EVENTS.RECORDS_LIST);
+  } catch {
+    return null;
+  }
+};
+
 export const listPublicRooms = async () => {
   try {
     return await socket.timeout(ACK_TIMEOUT_MS).emitWithAck(EVENTS.ROOMS_LIST);

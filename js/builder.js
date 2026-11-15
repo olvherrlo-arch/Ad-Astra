@@ -29,13 +29,14 @@ import { PROPELLANTS, getPart, resolvePart } from './catalog.js';
 import { on, sendAction, session } from './connection.js';
 import { totalDeltaV } from './flightplans.js';
 import { getSeller } from './market.js';
-import { getMission } from './missions.js';
+import { getMission, missionFor } from './missions.js';
 import { MOUNT_SIZE, drawPart, drawSize, drawThumb } from './partart.js';
 import { conditionName, credits, force, mass, number, tierOf, versionColumns } from './partinfo.js';
 import { INK, UI_FONT, condensed, halftone, withAlpha } from './riso.js';
 import { validateRocket } from './rocket.js';
 import { canActAs } from './shared.js';
 import { reducedMotion } from './settings.js';
+import { scienceReport } from './science.js';
 
 const EMPTY_STAGE_HEIGHT = 46;
 const NEW_STAGE_HEIGHT = 40;
@@ -792,8 +793,13 @@ export const mountBuilder = (container) => {
   // ============================================================
   const renderStats = () => {
     const state = data();
-    const mission = getMission(state.missionId);
-    const review = validateRocket(toPhysicsStages(rocket(), inventory()), mission, { credits: state.economy.credits });
+    const mission = missionFor(state);
+    const physical = toPhysicsStages(rocket(), inventory());
+    const review = validateRocket(physical, mission, { credits: state.economy.credits });
+    // Ciencia esperada si todo funciona (js/science.js): instrumentos contra el enlace con la Tierra.
+    const items = physical.flatMap((stage) => stage.items);
+    const surface = mission.flightPlan.find((leg) => leg.id === 'surface');
+    const science = surface ? scienceReport({ items, leg: surface, relay: items.some((item) => (item.provides ?? []).includes('relay')) }) : null;
     const stats = review.stats;
     const needed = totalDeltaV(mission.flightPlan);
     statsBox.replaceChildren();
@@ -832,6 +838,14 @@ export const mountBuilder = (container) => {
         ['Empuje/peso', number(stats.twr, 2), 'Empuje dividido por el peso. Menos de 1: el cohete no se levanta. Conviene 1,2 o más.', twrClass],
         ['Masa total', mass(stats.mass), 'Todo lo que hay que levantar: piezas más combustible.'],
         ['Costo', `${credits(stats.cost)} (quedan ${credits(state.economy.credits)})`, 'Lo pagado por las piezas puestas más el combustible, que se cobra al despegar.'],
+        ...(science ? [
+          ['Ciencia esperada', science.max > 0 ? `${science.value} de ${science.max} pts` : 'sin instrumentos',
+            'Los instrumentos (espectrómetro, cámara, sismómetro, vehículo) dan ciencia solo si sus datos llegan a la Tierra. Más instrumentos = más ciencia, masa, energía y datos.',
+            science.max === 0 ? 'warn' : science.value < science.max * 0.8 ? 'warn' : 'good'],
+          ['Datos', `${number(science.generated)} MB · enlace ${number(science.capacity)} MB`,
+            `Lo que producen los instrumentos en la superficie contra lo que se puede mandar: antenas × horas × señal del repetidor (${Math.round(science.coverage * 100)} %) más la memoria a bordo. Lo que no cabe se pierde.`,
+            science.generated > science.capacity ? 'warn' : 'good'],
+        ] : []),
       ]));
 
       details.append(statList([

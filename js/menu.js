@@ -5,6 +5,7 @@
  */
 import { createRoom, joinRoom, listPublicRooms, on, session } from './connection.js';
 import { openCredits } from './credits.js';
+import { openRecords } from './recordsview.js';
 import { openSettings } from './settings.js';
 import { MAX_NAME_LENGTH, ROOM_CODE_LENGTH } from './shared.js';
 
@@ -57,6 +58,7 @@ const MENU_HTML = `
       </div>
 
       <button type="button" class="menu-btn level-0" data-nav data-action="options" aria-haspopup="dialog">Options</button>
+      <button type="button" class="menu-btn level-0" data-nav data-action="records" aria-haspopup="dialog">Records</button>
       <button type="button" class="menu-btn level-0" data-nav data-action="credits" aria-haspopup="dialog">Credits</button>
     </nav>
 
@@ -206,10 +208,11 @@ export const mountMenu = (container) => {
       session.solo = true;
       enterLobby(createRoom, name).then(() => { if (!session.room) session.solo = false; });
     }
-    const opener = event.target.closest('[data-action="options"], [data-action="credits"]');
+    const opener = event.target.closest('[data-action="options"], [data-action="credits"], [data-action="records"]');
     if (opener) {
       const back = () => opener.focus();
       if (opener.dataset.action === 'options') openSettings({ onClose: back });
+      else if (opener.dataset.action === 'records') openRecords({ onClose: back });
       else openCredits({ onClose: back });
     }
   });

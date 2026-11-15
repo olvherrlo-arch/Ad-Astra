@@ -24,7 +24,7 @@
  * Las ventajas (`perk`) son valores de juego, no ciencia.
  */
 import { installedUids, toPhysicsStages } from './assembly.js';
-import { getMission } from './missions.js';
+import { getMission, missionFor } from './missions.js';
 import { validateRocket } from './rocket.js';
 import { ROLES } from './shared.js';
 
@@ -46,7 +46,7 @@ const CABIN_SWITCHES = ['Batería', 'Bombas', 'Guiado', 'Radio', 'Oxígeno', 'Lu
 
 const installed = (data) => (data.rocket ? installedUids(data.rocket).length : 0);
 const noCritical = (data) => {
-  const mission = getMission(data.missionId);
+  const mission = missionFor(data);
   if (!data.rocket || !data.economy || !mission || installed(data) === 0) return false;
   const physical = toPhysicsStages(data.rocket, data.economy.inventory);
   return validateRocket(physical, mission, { credits: data.economy.credits }).critical.length === 0;

@@ -7,9 +7,11 @@
 import { installedUids } from '../js/assembly.js';
 import { EXAMPLE_BLUEPRINTS } from '../js/blueprints.js';
 import { getPart } from '../js/catalog.js';
-import { getMission } from '../js/missions.js';
+import { getMission, missionFor } from '../js/missions.js';
+import { ONBOARD_STORAGE, scienceReport } from '../js/science.js';
 import { applyAction, createInitialState, isGameAction, publicState } from '../server/game.js';
-import { BONUS, GUIDANCE } from '../server/flight.js';
+import { BONUS, GUIDANCE, startFlight } from '../server/flight.js';
+import { addRecord, listRecords, resetRecords } from '../server/records.js';
 import { doStageTasks } from './helpers.js';
 
 let failures = 0;
@@ -170,7 +172,7 @@ check('seguir sin el motor lo deja apagado: la etapa empuja menos',
   broken.ship().stages.flatMap((s) => s.items).find((i) => i.uid === second?.uid)?.failed === true && broken.data().flight.telemetry.stages[0].enginesWorking < broken.data().flight.telemetry.stages[0].engines);
 
 console.log('\n6) Mercado negro: el defecto oculto aparece en vuelo');
-const shady = newGame(9, {
+const shady = newGame(10, {
   tweak: (g) => {
     const engine = g.data().economy.inventory.find((i) => i.partId === 'engine-atm-l');
     Object.assign(engine, { source: 'black', sellerId: 'muelle9', inspected: null });
@@ -369,6 +371,82 @@ console.log('\n7) Rediseñar y volver a volar');
   const second = fly(retry);
   check(`el segundo vuelo, con cuidado, termina ("${second.result?.text}")`, Boolean(second.result) && retry.stage() === 'debrief');
   check('el resumen nuevo es del último vuelo', Boolean(retry.data().score.final) && retry.data().attempt === 2);
+}
+
+console.log('\n8) Plan de la misión: lugar y órbita');
+{
+  const fresh = { state: createInitialState() };
+  const sendFresh = (who, action, extra = {}) => {
+    const result = applyAction(fresh.state, action, { ...who, players: crew, ...extra });
+    if (result.state) fresh.state = result.state;
+    return result;
+  };
+  while (fresh.state.data.scene === 'prologue') sendFresh(ana, { type: 'story:next' });
+  sendFresh(ana, { type: 'mission:start', missionId: 'moon' });
+  while (fresh.state.data.scene === 'briefing') sendFresh(ana, { type: 'story:next' });
+  const legsNow = () => missionFor(fresh.state.data).flightPlan;
+  const dv = (id) => legsNow().find((leg) => leg.id === id).dv;
+  const low = { loi: dv('loi'), descent: dv('descent') };
+  check('Comercio no decide el plan', Boolean(sendFresh(meche, { type: 'plan:set', orbit: 'high' }).error));
+  check('Vuelo o Ciencia sí', !sendFresh(caro, { type: 'plan:set', orbit: 'high' }).error && fresh.state.data.plan.orbit === 'high');
+  check(`órbita alta: entrar cuesta menos (${dv('loi')} contra ${low.loi} m/s) y bajar cuesta más (${dv('descent')} contra ${low.descent})`,
+    dv('loi') < low.loi && dv('descent') > low.descent);
+  check('la órbita alta da más señal del repetidor', legsNow().find((leg) => leg.id === 'surface').relayCoverage > 0.6);
+  sendFresh(ana, { type: 'plan:set', site: 'pole' });
+  const surface = legsNow().find((leg) => leg.id === 'surface');
+  check('el polo sur da más ciencia y menos Sol', surface.science > 1 && surface.sun < 0.5);
+  check('un lugar que no existe se rechaza', Boolean(sendFresh(ana, { type: 'plan:set', site: 'marte' }).error));
+  check('la decisión queda marcada para la lista de tareas', fresh.state.data.plan.decided === true);
+  const launched = newGame(42);
+  check('después del despegue el plan queda fijo', Boolean(launched.send(ana, { type: 'plan:set', orbit: 'high' }).error));
+
+  console.log('\n9) Ciencia y datos');
+  const item = (partId, extra = {}) => ({ ...getPart(partId), ...extra });
+  const site = legs.find((leg) => leg.id === 'surface');
+  const base = scienceReport({ items: [item('spectrometer'), item('antenna')], leg: site, relay: true });
+  check(`un espectrómetro con antena y repetidor manda todo (${base.value}/${base.max})`, base.value === base.max && base.sent === base.generated);
+  const greedy = scienceReport({ items: [item('spectrometer'), item('camera'), item('rover'), item('antenna')], leg: site, relay: true });
+  check(`más instrumentos: más ciencia posible (${greedy.max}) pero no caben todos los datos (${greedy.sent} de ${greedy.generated} MB)`, greedy.max > base.max && greedy.sent < greedy.generated);
+  const ka = scienceReport({ items: [item('spectrometer'), item('camera'), item('rover'), item('antenna-ka')], leg: site, relay: true });
+  check(`con antena de banda Ka llega más ciencia (${ka.value} contra ${greedy.value})`, ka.value > greedy.value);
+  const noRelay = scienceReport({ items: [item('spectrometer'), item('camera'), item('antenna')], leg: site, relay: false });
+  check('sin repetidor, en la cara oculta solo llega lo que cabe en la memoria', noRelay.sent === Math.min(noRelay.generated, ONBOARD_STORAGE));
+  const broken = scienceReport({ items: [item('spectrometer', { failed: true }), item('antenna')], leg: site, relay: true });
+  check('un instrumento roto no da ciencia', broken.value === 0 && broken.max > 0);
+  const saving = scienceReport({ items: [item('spectrometer'), item('antenna')], leg: site, relay: true, saving: true });
+  check('en modo ahorro los instrumentos no miden', saving.value === 0);
+  const flown = newGame(42);
+  fly(flown);
+  const final = flown.data().score.final;
+  check(`el vuelo real calcula la ciencia en la superficie (${final.science?.value} de ${final.science?.max})`, flown.data().flight.science?.max > 0 && final.science.max > 0);
+  check('Ciencia suma puntos por la ciencia enviada', flown.data().score.players[caro.id].notes.some((n) => n.label.startsWith('Ciencia enviada')));
+
+  console.log('\n10) Dificultad');
+  const budgetWith = (difficulty) => {
+    const game = { state: createInitialState() };
+    const send = (action) => { const r = applyAction(game.state, action, { ...ana, players: crew, difficulty }); if (r.state) game.state = r.state; };
+    while (game.state.data.scene === 'prologue') send({ type: 'story:next' });
+    send({ type: 'mission:start', missionId: 'moon' });
+    return game.state.data;
+  };
+  const [easy, normal, hard] = ['Fácil', 'Normal', 'Difícil'].map(budgetWith);
+  check(`el presupuesto depende de la dificultad (${easy.economy.budget} / ${normal.economy.budget} / ${hard.economy.budget})`,
+    easy.economy.budget > normal.economy.budget && normal.economy.budget > hard.economy.budget && hard.difficulty === 'Difícil');
+  check('una dificultad desconocida queda en Normal', budgetWith('Imposible').difficulty === 'Normal');
+  const hardFlight = startFlight({ rocket: flown.data().rocket, inventory: flown.data().economy.inventory, vaultItems: {}, legs, seed: 1, difficulty: 'Difícil' });
+  const normalFlight = startFlight({ rocket: flown.data().rocket, inventory: flown.data().economy.inventory, vaultItems: {}, legs, seed: 1 });
+  const rate = (f) => f.ship.stages[0].items.find((i) => i.kind === 'engine').failureRate;
+  check('en Difícil las piezas fallan más y el guiado se desvía más', rate(hardFlight) > rate(normalFlight) && hardFlight.flight.precision.sigma > normalFlight.flight.precision.sigma);
+
+  console.log('\n11) Tabla de récords');
+  resetRecords();
+  const row = (ok, points) => ({ team: ['A'], missionId: 'moon', missionTitle: 'Luna', ok, points, science: 0, scienceMax: 0, site: null, orbit: null, difficulty: 'Normal', attempt: 1, objectives: '1/1', at: Date.now() });
+  addRecord(row(false, 9_000), { persist: false });
+  const second = addRecord(row(true, 3_000), { persist: false });
+  addRecord(row(true, 5_000), { persist: false });
+  check('las misiones cumplidas van antes que las fallidas, y entre ellas, más puntos primero',
+    listRecords().map((r) => r.points).join(',') === '5000,3000,9000' && second === 1);
+  resetRecords();
 }
 
 console.log(failures === 0 ? `\nTODO OK ✅ (${checks} verificaciones del vuelo)` : `\n${failures} verificación(es) fallaron ❌`);

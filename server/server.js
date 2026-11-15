@@ -16,6 +16,7 @@ import { Server } from 'socket.io';
 import { COUNTDOWN_SECONDS, LOBBY_GRACE_MS, REJOIN_GRACE_MS } from '../js/shared.js';
 import { registerChatHandlers } from './chat.js';
 import { registerGameHandlers } from './game.js';
+import { useRecordFile } from './records.js';
 import { registerLobbyHandlers } from './lobby.js';
 import { RoomStore, registerRoomHandlers } from './rooms.js';
 
@@ -121,6 +122,7 @@ const localNetworkUrls = (port) =>
 
 const start = async () => {
   const port = Number(process.env.PORT ?? 3000);
+  useRecordFile(); // la tabla de récords se guarda en data/records.json
   try {
     await createGameServer().listen(port);
   } catch (error) {

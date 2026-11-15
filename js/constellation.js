@@ -52,7 +52,8 @@ export const mountConstellation = (container) => {
   const renderStars = () => {
     stars.replaceChildren(
       ...MISSIONS.map((mission) => {
-        const status = statusOf(mission);
+        const built = mission.stages.length > 0;
+        const status = built ? statusOf(mission) : 'locked';
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `mission-star ${status}`;
@@ -65,7 +66,7 @@ export const mountConstellation = (container) => {
         name.textContent = `${mission.number} · ${mission.title}`;
         const state = document.createElement('span');
         state.className = 'star-status';
-        state.textContent = MISSION_STATUS[status];
+        state.textContent = built ? MISSION_STATUS[status] : 'Próximamente';
         button.append(name, state);
         button.addEventListener('click', () => {
           selectedId = mission.id;
@@ -86,8 +87,9 @@ export const mountConstellation = (container) => {
     $('.mission-card-number').textContent = `Misión ${mission.number}`;
     $('.mission-card-title').textContent = mission.title;
     const pill = $('.mission-card-status');
-    pill.textContent = MISSION_STATUS[status];
-    pill.className = `mission-card-status ${status}`;
+    // Una misión sin etapas todavía no se puede jugar: se muestra como "Próximamente".
+    pill.textContent = built ? MISSION_STATUS[status] : 'Próximamente';
+    pill.className = `mission-card-status ${built ? status : 'locked'}`;
     $('.mission-card-story').textContent = mission.story;
     $('[data-fact="goal"]').textContent = mission.goal;
     $('[data-fact="duration"]').textContent = mission.duration;
@@ -98,7 +100,7 @@ export const mountConstellation = (container) => {
 
     let note = '';
     if (status === 'locked') note = `Bloqueada: se abre al completar la Misión ${previous.number}, ${previous.title}.`;
-    else if (!built) note = 'Esta misión todavía no está construida.';
+    else if (!built) note = 'Próximamente: esta misión todavía está en construcción.';
     else if (!host) note = 'El anfitrión inicia la misión cuando la tripulación esté de acuerdo.';
     else if (status === 'in_progress') note = 'Ya la habían empezado: al iniciarla de nuevo, vuelve a la primera etapa.';
     $('.mission-card-note').textContent = note;

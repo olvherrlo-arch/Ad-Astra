@@ -70,7 +70,7 @@ export const getSeller = (id) => SELLERS.find((seller) => seller.id === id);
 const BLACK_POOL = [
   'engine-atm-l', 'engine-atm-m', 'engine-vac-l', 'engine-vac-s', 'engine-lander', 'engine-orbital',
   'tank-kero-l', 'tank-hydro-l', 'tank-hydro-m', 'tank-hyper-m',
-  'solar-panel', 'battery', 'antenna', 'relay-sat', 'spectrometer', 'life-support', 'landing-legs',
+  'solar-panel', 'battery', 'antenna', 'antenna-ka', 'relay-sat', 'spectrometer', 'camera', 'life-support', 'landing-legs',
 ];
 const OFFERS_PER_SELLER = 4;
 const WORSE = { new: 'used', used: 'damaged', repaired: 'damaged', damaged: 'damaged' };

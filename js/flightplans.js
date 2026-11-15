@@ -21,7 +21,11 @@
  *   hours          cuánto dura el tramo, con la espera que viene después (para la energía)
  *   sun            fracción de ese tiempo con luz del Sol sobre los paneles (0 a 1; estimación)
  *   farSide        la nave está detrás de la Luna: sin repetidor no hay señal directa con la Tierra
+ *   relayCoverage  fracción del tramo en que el repetidor ve a la nave (depende de la órbita elegida)
+ *   science        multiplicador de ciencia del lugar de alunizaje (valor de juego)
+ *   legsRisk       multiplicador del riesgo para las patas al alunizar (valor de juego)
  */
+import { DEFAULT_PLAN, ORBITS, SITES } from './missionplan.js';
 import { BODIES, circularVelocity, escapeBurn, hohmann, orbitSpeed } from './physics.js';
 
 const LOW_EARTH_ORBIT = 200_000; // m sobre la superficie
@@ -32,10 +36,17 @@ export const PRISM_MASS = 85; //    kg; ficción
 
 const round = (value) => Math.round(value / 10) * 10;
 
-export const moonFlightPlan = () => {
+/**
+ * Los tramos del viaje a la Luna para un plan (js/missionplan.js): la órbita cambia el Δv con las
+ * fórmulas reales; el lugar cambia el margen de alunizaje, el Sol en la superficie y la ciencia.
+ * @param {{ site?: string, orbit?: string }} [plan]
+ */
+export const moonFlightPlan = (plan = DEFAULT_PLAN) => {
+  const orbit = ORBITS[plan.orbit] ?? ORBITS[DEFAULT_PLAN.orbit];
+  const site = SITES[plan.site] ?? SITES[DEFAULT_PLAN.site];
   const { earth, moon } = BODIES;
   const leo = earth.radius + LOW_EARTH_ORBIT;
-  const llo = moon.radius + LOW_LUNAR_ORBIT;
+  const llo = moon.radius + (orbit.altitude ?? LOW_LUNAR_ORBIT);
 
   // Tierra → Luna: media elipse desde la órbita baja hasta la distancia de la Luna.
   const toMoon = hohmann(earth.mu, leo, moon.orbitRadius);
@@ -44,7 +55,8 @@ export const moonFlightPlan = () => {
   const lunarCapture = escapeBurn(moon.mu, llo, arrivalSpeed);
   // Órbita lunar → suelo: bajar el punto más bajo hasta la superficie y frenar toda la velocidad al llegar.
   const descentEllipse = (llo + moon.radius) / 2;
-  const landing = (circularVelocity(moon.mu, llo) - orbitSpeed(moon.mu, llo, descentEllipse) + orbitSpeed(moon.mu, moon.radius, descentEllipse)) * LANDING_MARGIN;
+  const landing = (circularVelocity(moon.mu, llo) - orbitSpeed(moon.mu, llo, descentEllipse) + orbitSpeed(moon.mu, moon.radius, descentEllipse)) * LANDING_MARGIN * site.landingFactor;
+  const km = Math.round((llo - moon.radius) / 1000);
 
   return [
     {
@@ -57,23 +69,23 @@ export const moonFlightPlan = () => {
       note: `Un encendido que estira la órbita hasta la distancia de la Luna. El viaje dura unos ${Math.round(toMoon.time / 86_400)} días.`,
     },
     {
-      id: 'loi', name: 'Entrar en órbita lunar', dv: round(lunarCapture), release: ['relay'],
-      stage: 'flight', hours: 4, sun: 0.5, farSide: true,
-      note: 'Frenar para que la Luna atrape a la nave. Aquí se suelta el satélite repetidor, si se lleva.',
+      id: 'loi', name: `Entrar en órbita lunar (${km} km)`, dv: round(lunarCapture), release: ['relay'],
+      stage: 'flight', hours: 4, sun: 0.5, farSide: true, relayCoverage: orbit.relayCoverage,
+      note: `Frenar para que la Luna atrape a la nave en una órbita de ${km} km. Aquí se suelta el satélite repetidor, si se lleva.`,
     },
     {
-      id: 'descent', name: 'Alunizar en el lado oculto', dv: round(landing),
-      body: 'moon', minTwr: 1.3, needs: ['landing-gear', 'landing-engine'], stage: 'surface', hours: 1, sun: 0.5, farSide: true,
+      id: 'descent', name: `Alunizar: ${site.name}`, dv: round(landing), legsRisk: site.legsRisk,
+      body: 'moon', minTwr: 1.3, needs: ['landing-gear', 'landing-engine'], stage: 'surface', hours: 1, sun: site.sun, farSide: true,
       note: 'Bajar de la órbita y frenar hasta posarse. Sin aire, todo el frenado lo hace el motor.',
     },
     {
       id: 'surface', name: 'Encontrar y cargar el Prisma', dv: 0, needs: ['prism-scan', 'prism-cargo'], addMass: PRISM_MASS,
-      stage: 'surface', hours: 10, sun: 0.5, farSide: true,
-      note: 'No gasta combustible, pero el Prisma suma masa para el viaje de vuelta.',
+      stage: 'surface', hours: 10, sun: site.sun, farSide: true, relayCoverage: orbit.relayCoverage, science: site.science,
+      note: 'No gasta combustible, pero el Prisma suma masa para el viaje de vuelta. Mientras tanto, los instrumentos trabajan.',
     },
     {
       id: 'liftoff', name: 'Despegar de la Luna', dv: round(landing), body: 'moon', minTwr: 1.2,
-      stage: 'surface', hours: 1, sun: 0.5, farSide: true,
+      stage: 'surface', hours: 1, sun: site.sun, farSide: true,
       note: 'Lo mismo que alunizar, al revés.',
     },
     {
@@ -88,6 +100,16 @@ export const moonFlightPlan = () => {
 };
 
 export const FLIGHT_PLANS = { moon: moonFlightPlan };
+
+const cache = new Map();
+/** El plan de vuelo de una misión para un plan elegido (se calcula una vez por combinación). */
+export const flightPlanFor = (missionId, plan) => {
+  const build = FLIGHT_PLANS[missionId];
+  if (!build) return null;
+  const key = `${missionId}:${plan?.site}:${plan?.orbit}`;
+  if (!cache.has(key)) cache.set(key, build(plan));
+  return cache.get(key);
+};
 
 /** Δv total que pide un plan de vuelo. */
 export const totalDeltaV = (legs) => legs.reduce((sum, leg) => sum + leg.dv, 0);

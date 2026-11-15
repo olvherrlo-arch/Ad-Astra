@@ -88,6 +88,9 @@ export const CAPABILITIES = {
  * @property {number} [width]         ancho (m), para dibujarla
  * @property {number} [mounts]        puntos de montaje que ofrece para colgarle equipo
  * @property {number} [mountCost]     puntos de montaje que ocupa (0 = tiene su propio anclaje)
+ * @property {number} [science]       instrumentos: valor científico si sus datos llegan a la Tierra (puntos; valor de juego)
+ * @property {number} [dataRate]      instrumentos: datos que produce por hora en la superficie (MB/h; valor de juego)
+ * @property {number} [downlink]      antenas: datos que puede mandar a la Tierra por hora (MB/h; orden de magnitud real)
  */
 
 /** @type {Part[]} */
@@ -217,7 +220,12 @@ export const PARTS = [
   {
     id: 'antenna', name: 'Antena de alta ganancia', category: 'comms', kind: 'comms',
     description: 'Habla con la Tierra desde la distancia de la Luna, siempre que la Tierra esté a la vista.',
-    mass: 45, height: 0.5, cost: 90, failureRate: 0.01, powerDraw: 120, provides: ['comms'],
+    mass: 45, height: 0.5, cost: 90, failureRate: 0.01, powerDraw: 120, provides: ['comms'], downlink: 500,
+  },
+  {
+    id: 'antenna-ka', name: 'Antena de banda Ka', category: 'comms', kind: 'comms',
+    description: 'Manda cinco veces más datos por hora que la antena común, pero pesa y gasta más energía.',
+    mass: 75, height: 0.6, cost: 230, failureRate: 0.012, powerDraw: 260, provides: ['comms'], downlink: 2_400,
   },
   {
     id: 'relay-sat', name: 'Satélite repetidor', category: 'comms', kind: 'comms',
@@ -234,7 +242,17 @@ export const PARTS = [
   {
     id: 'spectrometer', name: 'Espectrómetro', category: 'exploration', kind: 'instrument',
     description: 'Lee de qué está hecho el suelo. Es lo que permite ubicar el mineral del Prisma.',
-    mass: 40, height: 0.4, cost: 180, failureRate: 0.012, powerDraw: 300, provides: ['prism-scan'],
+    mass: 40, height: 0.4, cost: 180, failureRate: 0.012, powerDraw: 300, provides: ['prism-scan'], science: 30, dataRate: 150,
+  },
+  {
+    id: 'camera', name: 'Cámara de alta resolución', category: 'exploration', kind: 'instrument',
+    description: 'Fotografía el terreno con mucho detalle. Mucha ciencia, pero produce muchísimos datos.',
+    mass: 30, height: 0.3, cost: 130, failureRate: 0.01, powerDraw: 90, science: 20, dataRate: 700,
+  },
+  {
+    id: 'seismometer', name: 'Sismómetro', category: 'exploration', kind: 'instrument',
+    description: 'Escucha los temblores de la Luna para saber cómo es por dentro. Liviano y casi no produce datos.',
+    mass: 20, height: 0.3, cost: 90, failureRate: 0.008, powerDraw: 15, science: 15, dataRate: 15,
   },
   {
     id: 'sample-vault', name: 'Contenedor del Prisma', category: 'exploration', kind: 'cargo',
@@ -243,8 +261,8 @@ export const PARTS = [
   },
   {
     id: 'rover', name: 'Vehículo explorador', category: 'exploration', kind: 'instrument',
-    description: 'Recorre más terreno que la tripulación a pie. Opcional, y pesa.',
-    mass: 460, height: 1.3, cost: 300, failureRate: 0.02, powerDraw: 250,
+    description: 'Recorre más terreno que la tripulación a pie y lleva sus propios sensores. Opcional, y pesa.',
+    mass: 460, height: 1.3, cost: 300, failureRate: 0.02, powerDraw: 250, science: 35, dataRate: 300,
   },
 
   // ----- Supervivencia -----

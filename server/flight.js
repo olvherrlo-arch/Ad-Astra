@@ -30,6 +30,7 @@ import { trueItem } from '../js/market.js';
 import { number } from '../js/partinfo.js';
 import { BODIES, batteryStep, combinedIsp, deltaV, gravityAt, propellantFor, thrustToWeight, WATT_HOUR } from '../js/physics.js';
 import { createRng } from '../js/random.js';
+import { scienceReport } from '../js/science.js';
 import { roleName } from '../js/shared.js';
 import { MAPS } from '../js/worldmaps.js';
 
@@ -176,7 +177,7 @@ const telemetry = (ship, legs, legIndex) => {
 export const guidanceFor = (ship, flight, leg) => {
   const reasons = [];
   const advanced = hasWorkingPart(ship, 'flight-computer');
-  let sigma = advanced ? GUIDANCE.advanced : GUIDANCE.basic;
+  let sigma = (advanced ? GUIDANCE.advanced : GUIDANCE.basic) * (ship.guidanceFactor ?? 1);
   reasons.push(advanced ? 'computadora de vuelo avanzada' : 'computadora básica de la cápsula');
   if (!hasWorking(ship, 'attitude')) {
     sigma *= GUIDANCE.noAttitude;
@@ -208,11 +209,21 @@ const signalFor = (ship, flight, leg) => hasWorking(ship, 'comms') && (!leg?.far
 //  Empezar el vuelo
 // ============================================================
 
+/** Dificultad elegida en el lobby (valores de juego): cuánto fallan las piezas y cuánto se desvía el guiado. */
+export const DIFFICULTY = {
+  'Fácil': { failure: 0.6, guidance: 0.75, budget: 1.25 },
+  Normal: { failure: 1, guidance: 1, budget: 1 },
+  'Difícil': { failure: 1.5, guidance: 1.3, budget: 0.85 },
+};
+
 /**
  * El vuelo recién despegado: devuelve `{ flight, ship }`.
- * @param {{ rocket: any, inventory: any, vaultItems: any, legs: any, seed: number, perks?: { zone?: boolean, [k: string]: any } }} args */
-export const startFlight = ({ rocket, inventory, vaultItems, legs, seed, perks = {} }) => {
-  const ship = { ...buildShip({ rocket, inventory, vaultItems }), seed, perks, prismSpot: pickPrismSpot(seed) };
+ * @param {{ rocket: any, inventory: any, vaultItems: any, legs: any, seed: number, perks?: { zone?: boolean, [k: string]: any }, difficulty?: string }} args */
+export const startFlight = ({ rocket, inventory, vaultItems, legs, seed, perks = {}, difficulty = 'Normal' }) => {
+  const level = DIFFICULTY[difficulty] ?? DIFFICULTY.Normal;
+  const ship = { ...buildShip({ rocket, inventory, vaultItems }), seed, perks, prismSpot: pickPrismSpot(seed), guidanceFactor: level.guidance };
+  // Con más dificultad las piezas fallan más seguido (y con menos, menos).
+  for (const item of ship.stages.flatMap((stage) => stage.items)) item.failureRate = Math.min(0.9, item.failureRate * level.failure);
   const flight = {
     legIndex: 0,
     progress: 0, //      Δv ya hecho en el tramo actual
@@ -238,6 +249,7 @@ export const startFlight = ({ rocket, inventory, vaultItems, legs, seed, perks =
     emergency: null,
     history: [], //      emergencias resueltas (para la evaluación)
     events: [],
+    science: null, //    lo que midieron los instrumentos en la superficie (js/science.js)
     result: null, //     { ok, text } cuando termina
     precision: null,
     telemetry: null,
@@ -596,6 +608,17 @@ const completeLeg = (work, leg) => {
   }
   if (!signalFor(ship, flight, leg)) flight.blackout = true;
 
+  // En la superficie trabajan los instrumentos: la ciencia que llega a la Tierra (js/science.js).
+  if (leg.id === 'surface') {
+    flight.science = scienceReport({ items: allItems(ship), leg, relay: flight.relay, saving: flight.mode === 'saving' });
+    const { value, max, generated, sent } = flight.science;
+    if (max > 0) {
+      note(work, generated > sent
+        ? `Ciencia: llegaron a la Tierra ${number(sent)} de ${number(generated)} MB de datos (${value} de ${max} puntos). El resto no cupo en el enlace.`
+        : `Ciencia: llegaron a la Tierra todos los datos (${number(sent)} MB): ${value} de ${max} puntos.`, generated > sent ? 'warn' : 'good', true);
+    }
+  }
+
   // La energía durante el tramo y la espera que sigue.
   if (!spendLegEnergy(work, leg)) return;
 
@@ -605,7 +628,9 @@ const completeLeg = (work, leg) => {
     // Tocar fuerte castiga a las patas; estrellarse las rompe seguro. El suelo firme elegido por Ciencia ayuda.
     const impact = flight.touchdown === 'hard' ? 2.5 : 1;
     const firm = ship.perks?.regolith ? BONUS.regolith : 1;
-    if (legs && (flight.touchdown === 'crash' || roll(work) < legs.failureRate * 3 * impact * firm)) {
+    // El lugar elegido también cuenta: un suelo quebrado castiga más a las patas (js/missionplan.js).
+    const ground = leg.legsRisk ?? 1;
+    if (legs && (flight.touchdown === 'crash' || roll(work) < legs.failureRate * 3 * impact * firm * ground)) {
       legs.failed = true;
       raiseEmergency(work, {
         kind: 'leak', uid: legs.uid,

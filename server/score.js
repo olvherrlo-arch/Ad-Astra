@@ -23,7 +23,7 @@
  *   beforeLaunch: copia del puntaje justo antes de despegar (para "Rediseñar y volver a volar")
  */
 import { installedUids, toPhysicsStages } from '../js/assembly.js';
-import { getMission } from '../js/missions.js';
+import { getMission, missionFor } from '../js/missions.js';
 import { validateRocket } from '../js/rocket.js';
 import { ROLES, roleName } from '../js/shared.js';
 import { getTask, stageTasks } from '../js/tasks.js';
@@ -113,7 +113,7 @@ export const scoreAction = (before, after, action, actor, players = []) => {
   const score = { ...base, players: { ...base.players }, seen: { ...base.seen }, crew: { builders: { ...base.crew.builders }, buyers: { ...base.crew.buyers } } };
   const who = { id: actor.id, name: actor.name, role: actor.role ?? null };
   const q = quality(action.quality);
-  const mission = getMission(after.missionId);
+  const mission = missionFor(after);
 
   // ---------- Tareas de etapa (minijuegos y cargar) ----------
   for (const [id, now] of Object.entries(after.tasks ?? {})) {
@@ -223,6 +223,13 @@ const finalize = (score, data, players) => {
   bonus('engineer', 'power', flight.savedPower ? 0.3 : 1, flight.savedPower ? 'Energía: hubo que pasar a ahorro' : 'Energía bien administrada');
   bonus('merchant', 'budget', clamp01((data.economy?.credits ?? 0) / Math.max(1, data.economy?.budget ?? 1) / 0.15), 'Presupuesto al final del viaje');
   bonus('scientist', 'prism', flight.prism ? 1 : 0, flight.prism ? 'El Prisma volvió a bordo' : 'El Prisma no se recuperó');
+  // Ciencia: lo que de verdad llegó a la Tierra frente a lo que podían dar los instrumentos a bordo.
+  const science = flight.science ?? { value: 0, max: 0, generated: 0, sent: 0 };
+  if (science.max > 0) {
+    for (const p of holders('scientist')) {
+      award(score, { id: p.id, name: p.name, role: p.role }, { key: `final:science:${p.id}`, points: POINTS.roleBonus * 0.6, q: science.value / science.max, label: `Ciencia enviada a la Tierra (${science.value} de ${science.max} puntos)`, role: 'scientist' });
+    }
+  }
   if (ok) for (const p of players) award(score, { id: p.id, name: p.name, role: p.role }, { key: `final:success:${p.id}`, points: POINTS.success, label: 'Misión cumplida', role: null });
 
   const highlights = [];
@@ -232,6 +239,7 @@ const finalize = (score, data, players) => {
   if (flight.located && flight.scans <= 3) highlights.push(`El Prisma se ubicó con solo ${flight.scans === 1 ? 'una lectura' : `${flight.scans} lecturas`}.`);
   if (flight.dvUsed > 0 && flight.wasted / flight.dvUsed < 0.02) highlights.push('Encendidos muy precisos: casi nada de combustible de más.');
   if (!flight.savedPower) highlights.push('La batería alcanzó sin pasar a modo ahorro.');
+  if (science.max > 0 && science.value >= science.max * 0.95) highlights.push(`Llegó toda la ciencia a la Tierra: ${science.value} puntos.`);
   if (!ok) mistakes.push(`Misión fallida: ${flight.result.text}`);
   if (flight.touchdown === 'crash') mistakes.push('La nave golpeó el suelo al alunizar.');
   if (flight.touchdown === 'hard') mistakes.push('El alunizaje fue duro: las patas sufrieron.');
@@ -239,6 +247,8 @@ const finalize = (score, data, players) => {
   if (flight.repairsPaid > 0) mistakes.push(`Las reparaciones costaron ${Math.round(flight.repairsPaid)} créditos.`);
   if (flight.savedPower) mistakes.push('Faltó energía y hubo que pasar a modo ahorro.');
   if (flight.blackout) mistakes.push('Hubo tramos sin señal con la Tierra.');
+  if (science.generated > science.sent) mistakes.push(`Se perdieron ${Math.round(science.generated - science.sent)} MB de datos: el enlace no alcanzó (más antena, un repetidor o una órbita más alta).`);
+  if (science.max === 0) mistakes.push('No viajó ningún instrumento científico: la misión no trajo ciencia.');
 
   // Logros de cada jugador (a partir de lo que de verdad hizo).
   const badges = {};
@@ -266,6 +276,9 @@ const finalize = (score, data, players) => {
     teamPoints,
     objectivesDone: done,
     objectivesTotal: tasks.length,
+    science,
+    plan: data.plan ?? null,
+    difficulty: data.difficulty ?? 'Normal',
     highlights,
     mistakes,
     badges,

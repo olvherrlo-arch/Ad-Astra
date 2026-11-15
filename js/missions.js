@@ -11,7 +11,8 @@
  *
  * La historia del Prisma y de Aztlán es ficción del juego, no ciencia.
  */
-import { moonFlightPlan } from './flightplans.js';
+import { flightPlanFor, moonFlightPlan } from './flightplans.js';
+import { planOf } from './missionplan.js';
 
 /** @typedef {{ id: string, name: string, summary: string, tools: boolean, tool?: string | string[], tasks: Record<string, string> }} Stage */
 
@@ -211,3 +212,14 @@ export const freshCampaign = () => ({
   prologueSeen: false,
   missions: Object.fromEntries(MISSIONS.map((mission, index) => [mission.id, index === 0 || UNLOCK_ALL_MISSIONS ? 'available' : 'locked'])),
 });
+
+/**
+ * La misión de una partida con su plan de vuelo según el plan elegido (lugar y órbita, js/missionplan.js).
+ * Úsala en lugar de getMission cuando haga falta `flightPlan`.
+ * @param {any} data  estado público de la partida
+ */
+export const missionFor = (data) => {
+  const mission = getMission(data?.missionId);
+  if (!mission || !mission.flightPlan) return mission;
+  return { ...mission, flightPlan: flightPlanFor(mission.id, planOf(data)) ?? mission.flightPlan };
+};

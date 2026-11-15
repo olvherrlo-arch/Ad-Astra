@@ -8,7 +8,7 @@
  * Las reglas están en server/flight.js; aquí solo se dibuja y se mandan acciones.
  */
 import { on, sendAction, session } from './connection.js';
-import { getMission } from './missions.js';
+import { getMission, missionFor } from './missions.js';
 import { credits, mass, number } from './partinfo.js';
 import { ROLES, canActAs, roleName } from './shared.js';
 
@@ -295,7 +295,7 @@ export const mountFlight = (container, { readOnly = false } = {}) => {
     const data = state();
     const flight = data?.flight;
     if (!flight || !session.room) return;
-    const mission = getMission(data.missionId);
+    const mission = missionFor(data);
     const legs = mission.flightPlan;
     const stageId = mission.stages[data.stageIndex].id;
     renderMap(flight, legs);

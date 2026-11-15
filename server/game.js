@@ -31,16 +31,18 @@
  */
 import { randomInt } from 'node:crypto';
 import { emptyRocket, installedUids, toPhysicsStages } from '../js/assembly.js';
-import { freshCampaign, getMission } from '../js/missions.js';
+import { freshCampaign, getMission, missionFor } from '../js/missions.js';
 import { number } from '../js/partinfo.js';
 import { propellantCost, validateRocket } from '../js/rocket.js';
 import { EVENTS, ROLES, canActAs, roleHolder, roleName } from '../js/shared.js';
+import { ORBITS, SITES, planOf } from '../js/missionplan.js';
 import { getStory } from '../js/story.js';
 import { missingTasks, rolesReady } from '../js/tasks.js';
 import { mapIdFor } from '../js/worldmaps.js';
 import { applyBuildAction, isBuildAction } from './build.js';
 import { applyEconomyAction, isEconomyAction, openEconomy } from './economy.js';
-import { applyFlightAction, isFlightAction, startFlight } from './flight.js';
+import { DIFFICULTY, applyFlightAction, isFlightAction, startFlight } from './flight.js';
+import { addRecord, listRecords } from './records.js';
 import { scoreAction } from './score.js';
 import { applyWorldAction, isWorldAction } from './world.js';
 
@@ -83,6 +85,8 @@ export const createInitialState = (campaign = freshCampaign()) => ({
     undoSteps: 0, //                 cuántos cambios del cohete se pueden deshacer
     ...freshWorld(), //              tareas hechas, lo que lleva cada quien, ventajas (server/world.js)
     score: null, //                  puntaje de cada jugador y resumen final (server/score.js)
+    plan: null, //                   lugar de alunizaje y órbita lunar elegidos (js/missionplan.js)
+    difficulty: 'Normal', //         dificultad del lobby, fijada al elegir la misión
     campaign,
   },
   secret: { seed: randomInt(2 ** 31), vault: null, undo: [], ship: null },
@@ -105,6 +109,8 @@ export const isGameAction = (action) => {
       return true;
     case 'mission:start':
       return typeof action.missionId === 'string' && action.missionId.length <= 20;
+    case 'plan:set':
+      return (action.site === undefined || typeof action.site === 'string') && (action.orbit === undefined || typeof action.orbit === 'string');
     default:
       return isEconomyAction(action) || isBuildAction(action) || isFlightAction(action) || isWorldAction(action);
   }
@@ -135,7 +141,8 @@ const settle = (previous, merged) => {
  * No toques sockets aquí: solo datos.
  * `heldRoles` = roles que tienen un tripulante conectado (si falta, se asume que están los cuatro).
  * `players` = los tripulantes de la sala (para repartir los bonos del puntaje).
- * @param {{ id: string, name: string, role: string | null, isHost: boolean, canActAs: (roleId: string) => boolean, heldRoles?: string[], players?: { id: string, name: string, role: string | null }[] }} actor
+ * `difficulty` = la dificultad elegida en el lobby (Fácil | Normal | Difícil).
+ * @param {{ id: string, name: string, role: string | null, isHost: boolean, canActAs: (roleId: string) => boolean, heldRoles?: string[], players?: { id: string, name: string, role: string | null }[], difficulty?: string }} actor
  */
 export const applyAction = (state, action, actor) => {
   const result = applyRules(state, action, actor);
@@ -149,7 +156,7 @@ export const applyAction = (state, action, actor) => {
  * Las reglas de la partida, sin el puntaje.
  * @param {any} state
  * @param {any} action
- * @param {{ id: string, name: string, role: string | null, isHost: boolean, canActAs: (roleId: string) => boolean, heldRoles?: string[] }} actor
+ * @param {{ id: string, name: string, role: string | null, isHost: boolean, canActAs: (roleId: string) => boolean, heldRoles?: string[], difficulty?: string }} actor
  */
 const applyRules = (state, action, actor) => {
   const { data } = state;
@@ -162,7 +169,7 @@ const applyRules = (state, action, actor) => {
   };
   const hostOnly = (what) => (actor.isHost ? null : { error: `Solo el anfitrión ${what}.` });
   const story = getStory(data.scene, data.missionId);
-  const mission = getMission(data.missionId);
+  const mission = missionFor(data);
   const stages = mission?.stages ?? [];
 
   /** Lo que cambia después de una acción de vuelo: el vuelo, el dinero y, si corresponde, la etapa. */
@@ -237,9 +244,15 @@ const applyRules = (state, action, actor) => {
       const status = data.campaign.missions[chosen.id];
       if (status === 'locked') return { error: `${chosen.title} sigue bloqueada: primero hay que completar la misión anterior.` };
       if (chosen.stages.length === 0) return { error: `${chosen.title} todavía no está construida.` };
-      const { economy, vault } = openEconomy(chosen, state.secret.seed);
+      const { economy: opened, vault } = openEconomy(chosen, state.secret.seed);
+      // La dificultad del lobby cambia el presupuesto (y, en el vuelo, las fallas y el guiado).
+      const difficulty = DIFFICULTY[actor.difficulty] ? actor.difficulty : 'Normal';
+      const budget = Math.round(opened.budget * DIFFICULTY[difficulty].budget);
+      const economy = { ...opened, budget, credits: opened.credits + (budget - opened.budget) };
       return commit({
         economy,
+        difficulty,
+        plan: { ...planOf(null) },
         rocket: emptyRocket(),
         flight: null,
         undoSteps: 0,
@@ -256,6 +269,19 @@ const applyRules = (state, action, actor) => {
           missions: { ...data.campaign.missions, [chosen.id]: status === 'completed' ? status : 'in_progress' },
         },
       }, `${actor.name} eligió la misión ${chosen.title}.`, { vault, undo: [], ship: null });
+    }
+
+    // ---------- Plan de la misión: lugar de alunizaje y órbita lunar (js/missionplan.js) ----------
+    // Lo deciden Vuelo o Ciencia (cualquiera de los dos), hasta el despegue.
+    case 'plan:set': {
+      if (data.scene !== 'mission' || !mission?.flightPlan) return { error: 'El plan se elige durante la misión.' };
+      if (data.flight) return { error: 'Ya despegaron: el plan quedó fijo.' };
+      if (!actor.canActAs('pilot') && !actor.canActAs('scientist')) return { error: 'El plan lo deciden Vuelo y Ciencia.' };
+      if (action.site !== undefined && !SITES[action.site]) return { error: 'Ese lugar no existe.' };
+      if (action.orbit !== undefined && !ORBITS[action.orbit]) return { error: 'Esa órbita no existe.' };
+      const plan = { ...planOf(data), ...(action.site ? { site: action.site } : {}), ...(action.orbit ? { orbit: action.orbit } : {}) };
+      if (plan.site === planOf(data).site && plan.orbit === planOf(data).orbit) return { error: 'Ese ya es el plan.' };
+      return commit({ plan: { ...plan, decided: true } }, `${actor.name} cambió el plan: ${SITES[plan.site].name}, ${ORBITS[plan.orbit].name.toLowerCase()}.`);
     }
 
     // ---------- Rediseñar y volver a volar ----------
@@ -302,7 +328,7 @@ const applyRules = (state, action, actor) => {
         const fuel = propellantCost(physical);
         const { flight, ship } = startFlight({
           rocket: data.rocket, inventory: data.economy.inventory, vaultItems: state.secret.vault.items,
-          legs: mission.flightPlan, seed: state.secret.seed, perks: data.perks,
+          legs: mission.flightPlan, seed: state.secret.seed, perks: data.perks, difficulty: data.difficulty,
         });
         return commit(
           { ...moveOn, flight, economy: { ...data.economy, credits: data.economy.credits - fuel } },
@@ -375,6 +401,10 @@ const applyRules = (state, action, actor) => {
 // ============================================================
 
 export const registerGameHandlers = (io, socket, store) => {
+  socket.on(EVENTS.RECORDS_LIST, (ack) => {
+    if (typeof ack === 'function') ack(listRecords());
+  });
+
   socket.on(EVENTS.STATE_ACTION, (action) => {
     const { roomCode, player } = socket.data;
     const room = roomCode ? store.get(roomCode) : undefined;
@@ -390,10 +420,33 @@ export const registerGameHandlers = (io, socket, store) => {
       canActAs: (roleId) => canActAs(players, player.id, roleId),
       heldRoles: ROLES.filter((role) => roleHolder(players, role.id)).map((role) => role.id),
       players: players.map((p) => ({ id: p.id, name: p.name, role: p.role ?? null })),
+      difficulty: room.settings?.difficulty,
     });
     if (result.error) return socket.emit(EVENTS.STATE_REJECTED, { message: result.error });
 
+    const previous = room.state;
     room.state = result.state;
+    // Terminó una misión: va a la tabla de récords (una vez por vuelo).
+    const final = room.state.data.score?.final;
+    if (final && !previous.data.score?.final) {
+      const mission = getMission(room.state.data.missionId);
+      const place = addRecord({
+        team: players.map((p) => p.name),
+        missionId: mission?.id ?? '',
+        missionTitle: mission?.title ?? '',
+        ok: final.ok,
+        points: final.teamPoints,
+        science: final.science?.value ?? 0,
+        scienceMax: final.science?.max ?? 0,
+        site: final.plan?.site ?? null,
+        orbit: final.plan?.orbit ?? null,
+        difficulty: final.difficulty ?? 'Normal',
+        attempt: room.state.data.attempt ?? 1,
+        objectives: `${final.objectivesDone}/${final.objectivesTotal}`,
+        at: Date.now(),
+      });
+      room.state = { ...room.state, data: { ...room.state.data, score: { ...room.state.data.score, final: { ...final, place } } } };
+    }
     io.to(room.code).emit(EVENTS.STATE_SYNC, publicState(room.state));
   });
 };

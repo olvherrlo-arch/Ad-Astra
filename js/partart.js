@@ -198,6 +198,41 @@ const ICONS = {
     paperFill(ctx, lens, INK.teal);
     keyLine(ctx, lens, 1.4);
   },
+  camera: (ctx, x, y, s) => {
+    const body = box(ctx, x - s * 0.38, y - s * 0.24, s * 0.62, s * 0.48, 3);
+    paperFill(ctx, body);
+    inkFill(ctx, body, INK.gold);
+    keyLine(ctx, body, 1.4);
+    const lens = disc(ctx, x - s * 0.07, y, s * 0.17);
+    paperFill(ctx, lens, INK.navy);
+    keyLine(ctx, lens, 1.4);
+    const hood = box(ctx, x + s * 0.24, y - s * 0.12, s * 0.16, s * 0.24, 1);
+    paperFill(ctx, hood, INK.navy);
+  },
+  seismometer: (ctx, x, y, s) => {
+    const dome = () => { ctx.beginPath(); ctx.arc(x, y + s * 0.2, s * 0.34, Math.PI, 0); ctx.closePath(); };
+    paperFill(ctx, dome);
+    inkFill(ctx, dome, halftone(ctx, INK.teal, 0.55, 2.4));
+    keyLine(ctx, dome, 1.4);
+    ctx.strokeStyle = INK.coral;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x - s * 0.3, y - s * 0.3);
+    for (let i = 0; i <= 6; i++) ctx.lineTo(x - s * 0.3 + i * s * 0.1, y - s * 0.3 + (i % 2 ? -s * 0.1 : s * 0.1));
+    ctx.stroke();
+  },
+  'antenna-ka': (ctx, x, y, s) => {
+    ctx.strokeStyle = INK.navy;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y + s * 0.4); ctx.lineTo(x, y + s * 0.02);
+    ctx.stroke();
+    const dish = () => { ctx.beginPath(); ctx.arc(x, y - s * 0.08, s * 0.42, Math.PI * 0.05, Math.PI * 0.95); ctx.closePath(); };
+    paperFill(ctx, dish);
+    inkFill(ctx, dish, halftone(ctx, INK.teal, 0.55, 2.4));
+    keyLine(ctx, dish, 1.4);
+    paperFill(ctx, disc(ctx, x, y - s * 0.3, 2.8), INK.coral);
+  },
   'sample-vault': (ctx, x, y, s) => {
     const crate = box(ctx, x - s * 0.36, y - s * 0.3, s * 0.72, s * 0.6, 2);
     paperFill(ctx, crate);

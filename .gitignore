@@ -3,3 +3,4 @@ node_modules
 # Archivos que crean Windows y OneDrive solos
 desktop.ini
 Thumbs.db
+data/

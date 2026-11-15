@@ -48,6 +48,9 @@ export const versionColumns = (part) => {
   if (part.powerOutput) columns.push({ key: 'powerOutput', label: 'Genera', value: (item) => power(item.powerOutput) });
   if (part.energyCapacity) columns.push({ key: 'energyCapacity', label: 'Guarda', value: (item) => energy(item.energyCapacity) });
   if (part.powerDraw) columns.push({ key: 'powerDraw', label: 'Consume', value: (item) => power(item.powerDraw) });
+  if (part.science) columns.push({ key: 'science', label: 'Ciencia', value: (item) => `${item.science} pts` });
+  if (part.dataRate) columns.push({ key: 'dataRate', label: 'Datos', value: (item) => `${number(item.dataRate)} MB/h` });
+  if (part.downlink) columns.push({ key: 'downlink', label: 'Envía', value: (item) => `${number(item.downlink)} MB/h` });
   columns.push({ key: 'mass', label: 'Masa', value: (item) => mass(item.mass) });
   columns.push({ key: 'reliability', label: 'Confiab.', value: (item) => reliability(item.failureRate) });
   return columns;

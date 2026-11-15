@@ -141,6 +141,7 @@ export const EVENTS = {
   //                                       `seatToken` (lo da el servidor al entrar) recupera tu lugar si te reconectas.
   ROOM_LEAVE: 'room:leave',
   ROOMS_LIST: 'rooms:list', //           → responde [{ code, hostName, players, maxPlayers }] (salas públicas)
+  RECORDS_LIST: 'records:list', //       → responde las mejores misiones (server/records.js)
   PLAYER_MOVE: 'player:move', //         { x, y, facing, moving, map?, act? }  (map y act solo en la misión)
   PLAYER_CUSTOMIZE: 'player:customize', // { color?, hat? }
   PLAYER_SET_READY: 'player:setReady', // true / false

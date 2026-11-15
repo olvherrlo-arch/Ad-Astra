@@ -1947,3 +1947,41 @@ html[data-effects='reduced'] .credits-star { animation: none !important; }
 .score-retry small { color: var(--dim); }
 .score-retry-button { padding: 9px 18px; background: var(--gold); color: #1f2d5c; border: 2px solid var(--starlight); border-radius: 8px; font: inherit; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; box-shadow: 3px 3px 0 var(--starlight); transition: transform 0.12s; }
 .score-retry-button:hover { transform: translate(-1px, -1px); }
+
+/* ---------- 14. Plan de la misión (js/planview.js) y récords (js/recordsview.js) ---------- */
+.plan-screen { display: grid; gap: 14px; padding: 18px clamp(12px, 3vw, 28px) 28px; color: var(--starlight); }
+.plan-kicker { margin: 0; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
+.plan-title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1; }
+.plan-intro, .plan-learn { margin: 4px 0 0; max-width: 70ch; color: var(--dim); }
+.plan-status { margin: 0; padding: 6px 12px; border-left: 5px solid var(--teal); background: var(--night-deep); font-weight: 600; }
+.plan-total { margin: 0; font-family: var(--font-display); font-size: 1.2rem; letter-spacing: 0.03em; }
+.plan-group h4 { margin: 0 0 6px; font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+.plan-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px; }
+.plan-option { position: relative; display: grid; align-content: start; gap: 6px; padding: 12px 14px; text-align: left; font: inherit; color: #1f2d5c; background: radial-gradient(rgba(31, 45, 92, 0.07) 0.9px, transparent 1.2px) 0 0 / 6px 6px, #f4ecd9; border: 3px solid #1f2d5c; border-radius: 10px; box-shadow: 4px 4px 0 #1f2d5c; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
+.plan-option:not(:disabled):hover { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 #ff6b5b; }
+.plan-option:disabled { cursor: default; opacity: 0.85; }
+.plan-option.chosen { border-color: #3fa597; box-shadow: 4px 4px 0 #3fa597; opacity: 1; }
+.plan-option strong { font-size: 1.05rem; }
+.plan-text { font-size: 0.86rem; line-height: 1.3; }
+.plan-facts { display: grid; gap: 2px; margin: 2px 0 0; padding: 0; list-style: none; font-size: 0.82rem; font-weight: 700; }
+.plan-facts li::before { content: '· '; }
+.plan-facts li.up { color: #2b7f72; }
+.plan-facts li.up::before { content: '▲ '; }
+.plan-facts li.down { color: #c2402f; }
+.plan-facts li.down::before { content: '▼ '; }
+.plan-chosen { position: absolute; top: 8px; right: 10px; padding: 0 8px; background: #3fa597; color: #f4ecd9; border-radius: 999px; font-size: 0.72rem; font-style: normal; font-weight: 700; }
+.score-plan { grid-column: 1 / -1; margin: 0; font-size: 0.85rem; font-weight: 600; color: rgba(31, 45, 92, 0.8); }
+.records-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.records-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(31, 45, 92, 0.06); border-left: 6px solid #c2402f; }
+.records-row.ok { border-left-color: #3fa597; }
+.records-place { font-family: var(--font-display); font-size: 1.4rem; text-align: center; }
+.records-main { display: grid; min-width: 0; line-height: 1.25; }
+.records-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.records-main span, .records-numbers span { font-size: 0.78rem; color: rgba(31, 45, 92, 0.75); }
+.records-numbers { display: grid; justify-items: end; text-align: right; }
+.records-numbers b { font-family: var(--font-display); font-weight: 400; font-size: 1.2rem; }
+.records-empty { margin: 8px 0; }
+@media (max-width: 560px) {
+  .records-row { grid-template-columns: 28px minmax(0, 1fr); }
+  .records-numbers { grid-column: 2; justify-items: start; text-align: left; }
+}

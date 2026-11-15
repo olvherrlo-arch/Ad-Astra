@@ -25,12 +25,13 @@ import { mountChat } from './chat.js';
 import { playCinematic } from './cinematic.js';
 import { endGame, isHost, on, sendAction, sendMove, session } from './connection.js';
 import { mountFlight } from './flightview.js';
+import { mountPlan } from './planview.js';
 import { mountScore } from './scoreview.js';
 import { frameLoop } from './frame.js';
 import { MARKET_STAGES } from './market.js';
 import { mountMarket } from './marketview.js';
 import { playMinigame } from './minigames.js';
-import { getMission } from './missions.js';
+import { getMission, missionFor } from './missions.js';
 import { credits, number } from './partinfo.js';
 import { playBurn, playLander } from './pilotgames.js';
 import { INK, UI_FONT, condensed, halftone, inkFill, keyLine, paperFill, withAlpha } from './riso.js';
@@ -147,7 +148,7 @@ export const mountWorld = (container) => {
     const data = session.state?.data;
     const room = session.room;
     if (!data || !room) return null;
-    const mission = getMission(data.missionId);
+    const mission = missionFor(data);
     const stage = mission?.stages[data.stageIndex];
     if (!mission || !stage) return null;
     const flight = data.flight;
@@ -274,7 +275,8 @@ export const mountWorld = (container) => {
           { blocked: BUILD_STAGES.includes(stageId) ? null : 'El cohete se arma en las etapas Construcción y Validación.' });
         break;
       case 'board':
-        add(stageId === 'debrief' ? 'Ver la evaluación de la misión' : 'Ver el tablero de misión', () => openPanel(stageId === 'debrief' ? ['score', 'flight', 'board'] : ['board']));
+        add(stageId === 'debrief' ? 'Ver la evaluación de la misión' : 'Ver el tablero de misión', () => openPanel(stageId === 'debrief' ? ['score', 'flight', 'board'] : ['board', 'plan']));
+        if (stageId !== 'debrief' && !flight) add('Elegir lugar de alunizaje y órbita', () => openPanel(['plan', 'board']));
         break;
       case 'lever': {
         if (stageId === 'debrief') {
@@ -422,6 +424,12 @@ export const mountWorld = (container) => {
     }
     if (mapId === 'station') {
       taskLines();
+      // La decisión del plan (lugar y órbita): no frena la etapa, pero conviene tomarla antes de armar.
+      if (['planning', 'market', 'build'].includes(stageId)) {
+        const decided = Boolean(data.plan?.decided);
+        const role = g.held.includes('pilot') || !g.held.includes('scientist') ? 'pilot' : 'scientist';
+        push(role, 'Decidir el lugar de alunizaje y la órbita (tablero de misión)', 'board', { done: decided, tag: 'decisión' });
+      }
       if (missingTasks(data, stageId, g.held).length === 0) {
         if (stageId === 'validation') push('pilot', 'Todos a la plataforma: Vuelo da el despegue', 'gate', { step: true });
         else push(null, 'Listo: bajen la palanca de etapa en la sala de misión', 'lever', { step: true });
@@ -531,6 +539,7 @@ export const mountWorld = (container) => {
     score: { name: 'Resultados', mount: mountScore },
     flight: { name: 'Informe del vuelo', mount: (box) => mountFlight(box, { readOnly: true }) },
     board: { name: 'Tablero de misión', mount: mountBoard },
+    plan: { name: 'Plan de la misión', mount: mountPlan },
   };
 
   const showTool = (name) => {

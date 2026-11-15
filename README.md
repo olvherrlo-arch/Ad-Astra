@@ -32,6 +32,24 @@ No ejecutes con ▶ los archivos de `js/`: corren en el navegador, no en Node.
 Cambios en `css/`, `js/`, `assets/` o `index.html`: solo recarga la página.
 Cambios en `server/` o en `js/shared.js` con `npm start`: detén el servidor (Ctrl+C) y vuelve a arrancarlo.
 
+## Decisiones de diseño de la misión (lo que pide el reto)
+
+- **Plan de la misión** (tablero de la sala de misión, lo deciden Vuelo o Ciencia hasta el despegue):
+  - **Lugar de alunizaje:** Cráter Tsiolkovski (tranquilo), Cuenca Apolo (más ciencia, suelo quebrado que castiga
+    las patas) o Polo sur (la mayor ciencia, casi sin Sol para los paneles).
+  - **Órbita lunar:** baja de 100 km (bajar y subir cuesta menos, el repetidor da señal la mitad del tiempo) o
+    alta de 1 000 km (entrar en órbita cuesta menos pero bajar y subir más; señal casi todo el tiempo).
+    El Δv de cada opción se calcula con las fórmulas reales; ciencia, Sol y riesgo de cada lugar son valores de juego.
+- **Ciencia y datos:** cada instrumento (espectrómetro, cámara, sismómetro, vehículo explorador) tiene valor
+  científico, masa, energía, costo y **datos por hora**. En la superficie producen datos que solo valen si llegan a
+  la Tierra: antenas (común o de banda Ka) × horas × señal del repetidor + memoria a bordo. Lo que no cabe se
+  pierde. El constructor muestra la ciencia esperada y el balance de datos mientras se arma.
+- **Dificultad** (reglas del lobby): Fácil (25 % más de presupuesto, menos fallas, guiado más preciso), Normal o
+  Difícil (15 % menos de presupuesto, más fallas, guiado menos preciso).
+- **Récords** (menú principal): las mejores misiones del servidor, primero las cumplidas y después por puntos,
+  con tripulación, plan, ciencia, dificultad e intentos. Se guardan en `data/records.json`.
+- **Marte y el Éxodo** aparecen en la constelación como *Próximamente*.
+
 ## Jugar solo
 
 **Play → Solo** abre una sala privada solo para ti y despega sola: manejas los cuatro roles.
@@ -211,6 +229,10 @@ ad-astra/
 │   ├── settings.js     Opciones de cada jugador (audio, juego, pantalla, accesibilidad)
 │   ├── credits.js      Pantalla de créditos
 │   ├── scoreview.js    Pantalla de resultados de la misión
+│   ├── planview.js     Pantalla del plan (lugar de alunizaje y órbita)
+│   ├── recordsview.js  Pantalla de récords
+│   ├── missionplan.js  Lugares y órbitas (también los usa el servidor)
+│   ├── science.js      Ciencia y datos de los instrumentos (también la usa el servidor)
 │   ├── game.js         La partida: marco y cambio de pantalla según la escena
 │   ├── narrative.js    Historia página por página (prólogo e informes)
 │   ├── constellation.js  Selector de misiones
@@ -247,6 +269,7 @@ ad-astra/
 │   ├── build.js        Armado del cohete
 │   ├── world.js        Tareas hechas y objetos que se cargan
 │   ├── score.js        Puntaje individual y resumen final
+│   ├── records.js      Tabla de récords (data/records.json)
 │   └── flight.js       El vuelo: encendidos, energía, escaneo, perforación y emergencias
 ├── tests/              physics, market, build, flight (con el puntaje) y simulate (jugadores simulados)
 └── render.yaml         Cómo se publica en Render (link fijo)
@@ -297,6 +320,9 @@ ad-astra/
 | Opciones del jugador                             | `js/settings.js` → `DEFAULT_SETTINGS` y `SECTIONS`   |
 | Cuánto vale cada cosa en el puntaje              | `server/score.js` → `POINTS`                         |
 | Equipo de cada rol en el traje                   | `js/character.js` → `ROLE_GEAR`                      |
+| Lugares de alunizaje y órbitas                   | `js/missionplan.js` → `SITES`, `ORBITS`              |
+| Ciencia, datos y memoria a bordo                 | `js/science.js` y `js/catalog.js` (`science`, `dataRate`, `downlink`) |
+| Qué cambia cada dificultad                       | `server/flight.js` → `DIFFICULTY`                    |
 
 ## Cómo funciona el juego
 
