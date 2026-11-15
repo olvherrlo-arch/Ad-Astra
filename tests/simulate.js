@@ -66,7 +66,7 @@ const run = async () => {
   // En la partida real los roles se sortean; aquí van en orden de llegada para saber quién es quién:
   // el primero Vuelo, luego Comercio, Ingeniería y Ciencia.
   const fixedOrder = ['pilot', 'merchant', 'engineer', 'scientist'];
-  const server = createGameServer({ countdownSeconds: 1, rejoinGraceMs: 400, pickRoles: (crew) => crew.map((_p, i) => fixedOrder[i] ?? null) });
+  const server = createGameServer({ countdownSeconds: 1, rejoinGraceMs: 400, lobbyGraceMs: 300, pickRoles: (crew) => crew.map((_p, i) => fixedOrder[i] ?? null) });
   const port = await server.listen(0);
   const url = `http://localhost:${port}`;
   console.log(`Servidor de prueba en ${url}\n`);
@@ -162,6 +162,15 @@ const run = async () => {
   check('con dos jugadores se sortean dos roles y los otros quedan libres', pair.length === 2 && new Set(pair).size === 2);
   p2.emit(EVENTS.PLAYER_SET_READY, true);
   await pause(100);
+  // Un corte breve en el lobby (el túnel o el WiFi) no le quita el lugar ni el Listo.
+  const p2Seat = seats.get(p2);
+  const p2Away = waitFor(host, EVENTS.PLAYER_LEFT, (n) => n.reason === 'away');
+  p2.disconnect();
+  await p2Away;
+  check('si se corta la conexión en el lobby, el lugar y el Listo quedan guardados un rato', seatOf(p2)?.connected === false && seatOf(p2)?.ready === true);
+  p2 = await connectClient('c2');
+  const p2Back = await join(p2, code, 'Jugador 2', { seatToken: p2Seat.seatToken });
+  check('al volver, recupera su lugar y sigue Listo', p2Back.ok && p2Back.data.me.id === p2Seat.id && p2Back.data.me.ready === true && players().length === MAX_PLAYERS);
 
   console.log('\n6) Cuenta regresiva');
   host.emit(EVENTS.GAME_START);
@@ -177,8 +186,9 @@ const run = async () => {
   await tick;
   const cancelled = waitFor(host, EVENTS.COUNTDOWN, (c) => c.cancelled);
   p4.disconnect();
-  check(`si alguien sale, se cancela ("${(await cancelled).cancelled}")`, room().phase === 'lobby');
-  check('en el lobby, quien se desconecta deja libre su lugar', players().length === 3);
+  check(`si alguien pierde la conexión, se cancela ("${(await cancelled).cancelled}")`, room().phase === 'lobby');
+  await pause(450);
+  check('si no vuelve a tiempo, su lugar queda libre', players().length === 3);
   check('la sala con lugar libre aparece en la lista pública', (await p5.emitWithAck(EVENTS.ROOMS_LIST)).some((r) => r.code === code));
 
   check('el Jugador 5 entra al lugar libre', (await join(p5, code, 'Jugador 5')).ok);
@@ -199,9 +209,10 @@ const run = async () => {
   check('lo que solo sabe el servidor no se envía', !('secret' in initial) && Number.isInteger(room().state.secret.seed));
 
   console.log('\n7) Historia y constelación');
-  const skip = await act(p2, { type: 'story:next' });
+  // Se ignora el estado inicial que puede llegar tarde a la conexión nueva de p2.
+  const skip = await act(p2, { type: 'story:next' }, (st) => st.version > 0);
   check(`un invitado no puede pasar la página ("${skip.error}")`, Boolean(skip.error) && room().state.data.page === 0);
-  const read = await act(p2, { type: 'story:read' });
+  const read = await act(p2, { type: 'story:read' }, (st) => Boolean(st.data.read[idOf(p2)]));
   check('cada quien avisa "Ya leí" y lo ven todos', read.state?.data.read[idOf(p2)] === true);
   check('avisar dos veces no cuenta doble', Boolean((await act(p2, { type: 'story:read' })).error));
   const pageTwo = await act(host, { type: 'story:next' });

@@ -6,8 +6,9 @@ El equipo habla español: textos del juego, comentarios y respuestas en español
 ## Correr y probar
 - `npm run dev`: servidor + página en http://localhost:3000 (node --watch).
 - `npm test`: 101 pruebas de física, catálogo y cohete (tests/physics.js), 56 del mercado (tests/market.js),
-  54 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 41 del vuelo
-  (tests/flight.js, vuela 60 partidas con semillas fijas) y 84 con jugadores simulados (tests/simulate.js).
+  58 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 63 del vuelo
+  (tests/flight.js, vuela partidas con semillas fijas) y las de jugadores simulados (tests/simulate.js).
+  tests/helpers.js tiene ayudas comunes (hacer tareas del mundo sin red).
   Todas deben terminar en "TODO OK ✅".
   En simulate.js, `act(cliente, acción, aceptar)` espera la respuesta del servidor; pasa `aceptar` cuando
   otro jugador acaba de actuar (si no, puede tomar un estado viejo que venía en camino).
@@ -19,7 +20,7 @@ El equipo habla español: textos del juego, comentarios y respuestas en español
 ## Estructura (HTML/CSS/JS sin build, Node + Socket.IO)
 - `js/shared.js`: contrato común navegador/servidor: eventos, reglas, colores, sombreros, `LOBBY_MAP` (piso, muebles, vestidor).
 - `server/`: el servidor manda (valida y aplica acciones). rooms.js (salas, cuenta regresiva, anfitrión), lobby.js, chat.js, game.js.
-- `js/`: main.js (pantallas), connection.js (socket + sesión), menu.js, lobby.js (sala dibujada en canvas), hud.js, chat.js, customize.js, character.js (sprite del astronauta), riso.js (tintas/tramas), game.js, sound.js.
+- `js/`: main.js (pantallas), world.js (el mundo jugable), connection.js (socket + sesión), menu.js, lobby.js (sala dibujada en canvas), hud.js, chat.js, customize.js, character.js (sprite del astronauta), riso.js (tintas/tramas), game.js, sound.js.
 - `css/styles.css`: sección 1 tokens; sección 4 lobby (dentro de `.lobby` se redefinen los tokens a papel y tinta).
 
 ## Estado del juego (hoja de ruta de 8 fases; visión completa en el "master prompt" del usuario)
@@ -34,8 +35,7 @@ Juego cooperativo de misiones espaciales, 4 roles (`ROLES` en shared.js): Cienci
   conserva en la sala entre despegues; el prólogo solo sale la primera vez). `mission:start` es del anfitrión.
 - Archivos: `js/story.js` (textos), `js/art.js` (ilustraciones provisorias en riso; `IMAGES` para dibujos finales),
   `js/missions.js` (misiones, fichas y etapas), `js/game.js` (marco + cambia de pantalla según la escena),
-  `js/narrative.js`, `js/constellation.js`, `js/desk.js` (mesa de misión: etapas + un escritorio por rol).
-  Las etapas tienen `tools: false`: por ahora cada rol solo da el visto bueno y el anfitrión avanza.
+  `js/narrative.js`, `js/constellation.js`. (La vieja `js/desk.js` se borró: la reemplazó el mundo jugable.)
 - Fase 3 HECHA (sin interfaz, todo funciones puras compartidas navegador/servidor, unidades SI):
   `js/physics.js` (Tsiolkovski, empuje/peso, órbitas, Hohmann, ventanas, arrastre, batería),
   `js/catalog.js` (`PARTS`, rarezas `TIERS`, estados `CONDITIONS`, `resolvePart()` da los números reales de una
@@ -78,6 +78,32 @@ Juego cooperativo de misiones espaciales, 4 roles (`ROLES` en shared.js): Cienci
 - Siguen: 7 evaluación con nota (S a D) y progreso, 8 misiones 2 y 3 (Marte aún no tiene etapas: la estrella
   aparece disponible pero dice "todavía no está construida").
 
+## Mundo jugable (vigente: reemplazó la mesa de misión)
+Regla del usuario: juego real, no menús. Solo mercado y constructor son menús (paneles dentro del mundo).
+Cada rol hace cosas con las manos, la cooperación es necesaria y nadie espera sin hacer nada.
+- `js/worldmaps.js`: mapas `station`, `ship`, `moon` (salas por rol, puertas, puestos con `x,y,w,h,height`),
+  colisiones y `findPath` por puertas.
+- `js/tasks.js` (compartido): `TASKS` por etapa y rol; tipos `tune|dial|timing|wires|order|switches|burnSim`
+  (minijuegos), `carry` (llevar `count` objetos de `from` a `to`), `menu` (abre mercado o constructor), `auto`.
+  `needs` encadena tareas, `perk` da una ventaja (`PERKS`), `shared` = cualquiera ayuda. `PREP`: preparativos
+  antes de cada encendido; `JOBS`: trabajos con contador. Las tareas de un rol sin dueño son "opcionales".
+- `server/world.js`: `task:done`, `carry:pick|drop|cancel`. `server/game.js`: ya NO existe `role:confirm`;
+  `confirmed` se calcula de las tareas. `stage:advance` lo hace cualquiera con todo hecho (palanca de etapa);
+  el despegue lo da Vuelo; en vuelo la etapa cambia sola.
+- `server/flight.js`: `flight:burn {dv, aim, touchdown}`, `flight:prep`, `flight:scan {x, y}` (devuelve la
+  distancia al Prisma; se ubica cruzando lecturas), `flight:dig`, `flight:load`, `flight:solar`.
+- `js/world.js`: pantalla (movimiento con teclas o clic, E/Espacio usa el puesto, clic en un puesto camina y
+  lo usa, HUD `.world-objectives` plegable, `.world-team`, `.world-flight`). Movimiento en vivo con `player:move`.
+  En pantallas ≤760 px se esconden lo hecho y lo opcional (clase `.extra`).
+- `js/worldart.js` (dibujo; `paintMoon` con trama suave), `js/minigames.js` (`playMinigame(kind)`),
+  `js/pilotgames.js` (`playBurn`, `playLander`: `GRAVITY 6`, `PAR 140` ≈ 1,6× el mínimo, suave si caída < 10
+  y costado < 7), `js/frame.js`. `js/flightview.js` acepta `{ readOnly: true }`.
+- Probado en navegador: estación, tareas, minijuegos, mapas de nave y Luna, escaneo. FALTA probar de punta a
+  punta sin atajos (perforar, cargar el Prisma, despegar de la Luna, emergencias con repuesto y reparación,
+  reentrada, Evaluación, volver al lobby) y con 2 a 4 personas reales (verse caminar, cargar, pilotear;
+  afinar el alunizaje con gente). Con el panel del navegador oculto el mundo se congela (sin rAF): hace falta
+  la ventana a la vista.
+
 ## Actualización de experiencia (UPDATE MASTER PROMPT del usuario: tutoriales, cinemáticas, constructor animado, UI)
 Orden pedido: 1 UI más simple → 2 tutoriales → 3 cinemáticas → 4 constructor animado → 5 pulido.
 - P1 HECHA (parcial): mesa de misión con "Tu tarea", fila de equipo (`.team-chip`, clic = visto bueno) y barra fija
@@ -114,6 +140,10 @@ Orden pedido: 1 UI más simple → 2 tutoriales → 3 cinemáticas → 4 constru
   `createGameServer({ pickRoles })` para fijar quién es quién. Cinemática `js/rolereveal.js` al despegar
   (fila con cartas boca abajo → tu rol en grande → todos los roles), estilo "revelación de roles".
   En el lobby no hay NADA de roles (se quitaron el botón y el panel de la tarjeta de embarque).
+- Cortes de conexión en el LOBBY: el lugar y el Listo se guardan `LOBBY_GRACE_MS` (20 s, js/shared.js); una cuenta
+  regresiva en marcha se cancela. Antes se borraba el lugar y el jugador volvía sin Listo (el túnel corta seguido),
+  y el anfitrión no podía despegar. El anfitrión ve el motivo en `.hud-why` sobre la tarjeta de embarque.
+- Al reiniciar el servidor, quien cargue la página en ese instante se queda en "Cargando…": hay que recargar.
 - Las 3 misiones empiezan desbloqueadas (`UNLOCK_ALL_MISSIONS = true` en js/missions.js). Marte y el Éxodo
   todavía no tienen etapas: al iniciarlas dice "todavía no está construida". Reglas del prompt: aprender haciendo, tutorial por rol, saltar/repetir, no adelantar a todo
   el equipo; texto tipo máquina de escribir que se completa con clic; animaciones que reflejan el estado REAL
@@ -134,7 +164,7 @@ El astronauta (assets/sprites/astronaut.png) es dibujo del usuario: no cambiarlo
   la app apaga los servidores de vista previa al rato y el link da error 502.
 - El servidor comprime los archivos de texto (gzip) y responde 304 si no cambiaron (ETag).
 - Link temporal: `cloudflared tunnel --url http://localhost:3000` (el link cambia cada vez).
-- Repositorio PÚBLICO: https://github.com/olvherrlo-arch/ad-astra (rama main). git del proyecto ya tiene
+- Repositorio PÚBLICO: https://github.com/olvherrlo-arch/Ad-Astra (rama main). git del proyecto ya tiene
   nombre/correo; el inicio de sesión de GitHub quedó guardado en el administrador de credenciales de Windows,
   así que `git push` funciona. Hacer commit y push solo cuando el usuario lo pida.
 - Link fijo: Render (`render.yaml`) desde ese repositorio (todavía no configurado).

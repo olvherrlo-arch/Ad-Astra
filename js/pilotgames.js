@@ -255,7 +255,8 @@ export const playLander = ({ title, budget, onProgress = () => {} }) =>
   }, (api) => {
     const { ctx, width: W, height: H, keys, pointer } = api;
     // Unidades del juego (no son metros reales): gravedad lunar "acelerada" para que dure unos 15 s.
-    const GRAVITY = 6, ACCEL = 15, PAR = 125, FUEL = PAR * 1.6;
+    // PAR ≈ 1,6 veces el mínimo (unas 88 unidades frenando justo a tiempo): deja margen a quien recién aprende.
+    const GRAVITY = 6, ACCEL = 15, PAR = 140, FUEL = PAR * 1.6, SOFT_DOWN = 10, SOFT_SIDE = 7;
     const GROUND = H - 46, SCALE = 1.05, PAD = 44;
     const toScreen = (x, y) => [W / 2 + x * SCALE, GROUND - y * SCALE];
     const terrain = createRng(Math.floor(Math.random() * 1e6));
@@ -271,7 +272,7 @@ export const playLander = ({ title, budget, onProgress = () => {} }) =>
       const tilt = Math.abs(lander.angle) / DEG;
       const onPad = Math.abs(lander.x) <= PAD + 6;
       const down = -lander.vy, side = Math.abs(lander.vx);
-      const touchdown = down < 9 && side < 6 && tilt < 20 && onPad ? 'soft' : down < 18 && side < 12 && tilt < 40 ? 'hard' : 'crash';
+      const touchdown = down < SOFT_DOWN && side < SOFT_SIDE && tilt < 20 && onPad ? 'soft' : down < 18 && side < 12 && tilt < 40 ? 'hard' : 'crash';
       // Lo quemado de más cuesta combustible de verdad (hasta 20 % más que lo que pide el tramo).
       const factor = clamp(0.96 + 0.5 * Math.max(0, used / PAR - 1), 0.96, 1.2);
       const aim = clamp(1 - Math.abs(lander.x) / 170, 0, 1);
@@ -396,7 +397,7 @@ export const playLander = ({ title, budget, onProgress = () => {} }) =>
         const parX = W - 230 + 210 * (1 - PAR / FUEL);
         ctx.fillStyle = INK.paper;
         ctx.fillRect(parX - 1, 28, 2, 24);
-        text(ctx, used > PAR ? 'gastando de más: ese combustible es del regreso' : 'verde = toca suave (caída < 9, costado < 6)', W - 20, 64, { size: 12, weight: 600, align: 'right', color: used > PAR ? INK.coral : withAlpha(INK.paper, 0.85) });
+        text(ctx, used > PAR ? 'gastando de más: ese combustible es del regreso' : `verde = toca suave (caída < ${SOFT_DOWN}, costado < ${SOFT_SIDE})`, W - 20, 64, { size: 12, weight: 600, align: 'right', color: used > PAR ? INK.coral : withAlpha(INK.paper, 0.85) });
         buttons.draw((id) => buttons.pressed(id) || (id === 'thrust' && thrust === 1));
       },
     };

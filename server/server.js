@@ -13,7 +13,7 @@ import { networkInterfaces } from 'node:os';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Server } from 'socket.io';
-import { COUNTDOWN_SECONDS, REJOIN_GRACE_MS } from '../js/shared.js';
+import { COUNTDOWN_SECONDS, LOBBY_GRACE_MS, REJOIN_GRACE_MS } from '../js/shared.js';
 import { registerChatHandlers } from './chat.js';
 import { registerGameHandlers } from './game.js';
 import { registerLobbyHandlers } from './lobby.js';
@@ -85,10 +85,12 @@ const serveFile = async (req, res) => {
 };
 
 /** `countdownSeconds` y `rejoinGraceMs` se pueden acortar en las pruebas. */
-export const createGameServer = ({ countdownSeconds = COUNTDOWN_SECONDS, rejoinGraceMs = REJOIN_GRACE_MS, pickRoles = undefined } = {}) => {
+export const createGameServer = ({
+  countdownSeconds = COUNTDOWN_SECONDS, rejoinGraceMs = REJOIN_GRACE_MS, lobbyGraceMs = LOBBY_GRACE_MS, pickRoles = undefined,
+} = {}) => {
   const httpServer = createServer(serveFile);
   const io = new Server(httpServer);
-  const store = new RoomStore({ countdownSeconds, rejoinGraceMs, pickRoles });
+  const store = new RoomStore({ countdownSeconds, rejoinGraceMs, lobbyGraceMs, pickRoles });
 
   io.on('connection', (socket) => {
     registerRoomHandlers(io, socket, store);

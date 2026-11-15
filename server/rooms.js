@@ -4,8 +4,9 @@
  * - Máximo 4 jugadores; cada uno recibe el primer color libre y un `id` que no cambia.
  * - Si el anfitrión se va, el rol de anfitrión pasa al jugador conectado que lleva más tiempo en la sala.
  * - Si alguien entra o sale durante la cuenta regresiva, se cancela.
- * - En el lobby, perder la conexión es salir. En plena misión, el lugar (y el rol) queda guardado:
- *   el jugador vuelve con su `seatToken` (recarga, corte de red) o desde el mismo navegador.
+ * - Si se corta la conexión, el lugar queda guardado: en el lobby unos segundos (con su Listo), en plena
+ *   misión mucho más (con su rol). El jugador vuelve con su `seatToken` (recarga, corte de red) o, en la
+ *   misión, desde el mismo navegador. Salir con "Abandonar sala" sí libera el lugar al instante.
  */
 import { randomInt, randomUUID } from 'node:crypto';
 import {
@@ -45,9 +46,10 @@ const toAckError = (error) => {
 export class RoomStore {
   #rooms = new Map();
 
-  constructor({ countdownSeconds, rejoinGraceMs, pickRoles = drawRoles }) {
+  constructor({ countdownSeconds, rejoinGraceMs, lobbyGraceMs = 20_000, pickRoles = drawRoles }) {
     this.countdownSeconds = countdownSeconds;
     this.rejoinGraceMs = rejoinGraceMs;
+    this.lobbyGraceMs = lobbyGraceMs;
     this.pickRoles = pickRoles; // las pruebas lo reemplazan para saber quién queda con qué rol
   }
 
@@ -393,7 +395,17 @@ export const registerRoomHandlers = (io, socket, store) => {
   socket.on('disconnect', () => {
     const { roomCode, player } = socket.data;
     const room = roomCode ? store.get(roomCode) : undefined;
-    if (room && player && room.phase === 'playing') holdSeat(io, socket, store, room, player);
-    else removeFromRoom(io, socket, store, 'disconnected');
+    if (!room || !player) return;
+    if (room.phase === 'playing') return holdSeat(io, socket, store, room, player);
+
+    // En el lobby: se guarda el lugar un rato. Una cuenta regresiva en marcha se cancela (falta alguien).
+    holdSeat(io, socket, store, room, player);
+    cancelCountdown(io, room, `${player.name} perdió la conexión`);
+    broadcastRoom(io, room);
+    const timer = setTimeout(() => {
+      const seat = store.get(roomCode)?.players.get(player.id);
+      if (seat && !seat.connected && store.get(roomCode).phase !== 'playing') removeSeat(io, store, roomCode, seat, 'disconnected');
+    }, store.lobbyGraceMs);
+    timer.unref?.();
   });
 };

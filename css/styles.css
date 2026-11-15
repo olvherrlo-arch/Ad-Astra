@@ -1753,7 +1753,9 @@ details.part-card.requested { border-color: var(--gold); box-shadow: 3px 3px 0 v
 .minigame-keys:empty { display: none; }
 
 @media (max-width: 760px) {
-  .world-objectives { width: min(230px, 56vw); max-height: 42%; padding: 7px 9px 9px; }
+  .world-objectives { width: min(230px, 56vw); max-height: 34%; padding: 7px 9px 9px; }
+  /* En angosto solo quedan tus tareas pendientes: lo hecho y la ayuda opcional se esconden. */
+  .world-objectives li.done, .world-objectives .extra { display: none; }
   .world-objectives li { font-size: 0.8rem; padding: 3px 5px; }
   .world-objectives header strong, .world-flight header strong { font-size: 1.05rem; }
   .world-team { width: 118px; gap: 4px; }
@@ -1771,3 +1773,5 @@ details.part-card.requested { border-color: var(--gold); box-shadow: 3px 3px 0 v
 @media (prefers-reduced-motion: reduce) {
   .world-fade.playing, .minigame-card, .world-flight .emergency { animation: none; }
 }
+
+.lobby .hud-why { position: absolute; left: 50%; bottom: calc(100% + 8px); translate: -50% 0; margin: 0; padding: 4px 12px; white-space: nowrap; background: var(--night); border: 2px solid var(--starlight); border-radius: 999px; box-shadow: 2px 2px 0 var(--coral); font-size: 0.85rem; font-weight: 700; }

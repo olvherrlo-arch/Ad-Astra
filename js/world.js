@@ -780,17 +780,18 @@ export const mountWorld = (container) => {
     head.title = 'Clic para plegar o desplegar la lista';
     head.append(el('span', 'kicker', `Etapa ${g.data.stageIndex + 1} de ${g.mission.stages.length} · clic para plegar`), el('strong', '', g.stage.name));
     const line = (entry) => {
-      const item = el('li', `${entry.done ? 'done' : ''}${entry.alert ? ' alert' : ''}${entry.step ? ' step' : ''}`);
+      const item = el('li', `${entry.done ? 'done' : ''}${entry.alert ? ' alert' : ''}${entry.step ? ' step' : ''}${entry.tag === 'opcional' ? ' extra' : ''}`);
       item.append(el('i', '', entry.done ? '✓' : entry.alert ? '!' : '○'), el('span', '', entry.text));
       if (entry.tag) item.append(el('em', '', entry.tag));
       if (entry.role && entry.role !== myRole) item.prepend(el('b', '', roleName(entry.role)));
       return item;
     };
-    const block = (title, entries) => {
+    // `extra`: lo opcional, que en pantallas angostas se esconde para no tapar el mundo.
+    const block = (title, entries, extra = entries.every((entry) => entry.tag === 'opcional')) => {
       if (entries.length === 0) return [];
-      const list = el('ul');
+      const list = el('ul', extra ? 'extra' : '');
       list.append(...entries.map(line));
-      return [el('h3', '', title), list];
+      return [el('h3', extra ? 'extra' : '', title), list];
     };
     const role = ROLES.find((r) => r.id === myRole);
     box.replaceChildren(
@@ -798,7 +799,7 @@ export const mountWorld = (container) => {
       ...block(role ? `Tu rol: ${role.name}` : 'Tu tarea', own),
       ...(own.length === 0 ? [el('p', 'empty', 'Por ahora no tienes tareas: ayuda a tu equipo.')] : []),
       ...block('Puestos libres (los cubre cualquiera)', free),
-      ...block('Puedes ayudar', shared.filter((entry) => !entry.done)),
+      ...block('Puedes ayudar', shared.filter((entry) => !entry.done), true),
     );
     box.style.setProperty('--role-ink', ROLE_INK[myRole] ?? INK.gold);
   };

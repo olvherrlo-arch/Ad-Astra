@@ -10,6 +10,11 @@ export const MIN_PLAYERS_TO_START = 1; // con menos de 4 es "modo demo": los rol
 export const COUNTDOWN_SECONDS = 5;
 /** Si todos pierden la conexión en plena misión, la sala espera este tiempo antes de borrarse. */
 export const REJOIN_GRACE_MS = 5 * 60_000;
+/**
+ * En el lobby, un corte de conexión breve (el túnel o el WiFi que se cae un instante) no saca a nadie:
+ * su lugar y su Listo esperan este tiempo. Si no vuelve, se libera el lugar.
+ */
+export const LOBBY_GRACE_MS = 20_000;
 export const ROOM_CODE_LENGTH = 4;
 export const MAX_NAME_LENGTH = 20;
 export const MAX_CHAT_LENGTH = 300;

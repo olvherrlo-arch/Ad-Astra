@@ -176,14 +176,14 @@ const paintMoon = (g, map) => {
   g.lineTo(0, map.height);
   g.closePath();
   g.fill();
-  // Sombra larga en trama: el Sol está bajo.
+  // Sombra larga en trama suave (puntos chicos y separados): el Sol está bajo.
   halftoneGradient(g, () => { g.beginPath(); g.rect(0, horizon, map.width, map.height - horizon); }, INK.navy,
-    (px, py) => 0.1 + 0.22 * (py / map.height) * (0.6 + 0.4 * Math.sin(px * 0.004)), { x: 0, y: horizon, w: map.width, h: map.height - horizon }, 7);
+    (px, py) => 0.03 + 0.11 * (py / map.height) * (0.6 + 0.4 * Math.sin(px * 0.004)), { x: 0, y: horizon, w: map.width, h: map.height - horizon }, 11);
   // Cráteres: una elipse hundida con el borde iluminado.
   for (let i = 0; i < 46; i++) {
     const x = 60 + rng() * (map.width - 120), y = horizon + 60 + rng() * (map.height - horizon - 90), r = 14 + rng() * 46;
     const crater = () => { g.beginPath(); g.ellipse(x, y, r, r * 0.42, 0, 0, Math.PI * 2); };
-    inkFill(g, crater, halftone(g, INK.navy, 0.34, 3.2));
+    inkFill(g, crater, halftone(g, INK.navy, 0.22, 4.2));
     g.beginPath();
     g.ellipse(x, y + 2, r, r * 0.42, 0, Math.PI * 0.05, Math.PI * 0.95);
     g.lineWidth = 2.2;
@@ -196,8 +196,8 @@ const paintMoon = (g, map) => {
     g.stroke();
   }
   // Piedritas
-  g.fillStyle = withAlpha(INK.navy, 0.35);
-  for (let i = 0; i < 260; i++) g.fillRect(rng() * map.width, horizon + 30 + rng() * (map.height - horizon - 30), 2 + rng() * 3, 1.5 + rng() * 2);
+  g.fillStyle = withAlpha(INK.navy, 0.28);
+  for (let i = 0; i < 170; i++) g.fillRect(rng() * map.width, horizon + 30 + rng() * (map.height - horizon - 30), 2 + rng() * 3, 1.5 + rng() * 2);
   paperGrain(g, rng, 0, horizon, map.width, map.height - horizon, 7000);
 };
 

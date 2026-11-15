@@ -73,19 +73,18 @@ Si el anfitrión se va, el rol pasa a quien lleva más tiempo en la sala.
 - **Tomas de cine:** al empezar la misión, al despegar, al llegar a la Luna, al volver y al terminar aparece una
   toma corta a pantalla completa. Se cierra sola o con un clic.
 - **Constelación:** las tres misiones son tres estrellas. Toca una para ver su ficha (objetivo, duración,
-  dificultad, equipo). Solo la primera está disponible; las otras dicen por qué están bloqueadas.
+  dificultad, equipo). Las tres están desbloqueadas, pero Marte y el Éxodo todavía no tienen contenido.
   El anfitrión presiona **Iniciar misión** y se lee el informe (4 páginas) antes de empezar.
-- **Mesa de misión:** la misión avanza por etapas. En cada una, cada rol lee su tarea y da el visto bueno;
-  con los cuatro, el anfitrión pasa a la siguiente. Las herramientas de cada etapa (mercado, constructor,
-  vuelo) todavía no están construidas.
-- **Mercado (etapa 3):** la misión tiene 15.000 créditos. Todos ven el dinero y las ofertas; solo quien maneja
+- **La misión se juega caminando:** ver la sección *El mundo jugable* más abajo. No hay "visto bueno":
+  cada rol queda listo cuando termina sus tareas.
+- **Mercado (etapa 3):** se abre en la terminal de suministros del Almacén. La misión tiene 15.000 créditos. Todos ven el dinero y las ofertas; solo quien maneja
   Comercio compra. Los demás pueden **Pedir** una pieza y queda marcada. Cada pieza se vende en tres rarezas:
   la mejor rinde un poco más, falla menos y cuesta más. La pestaña **Bodega** muestra lo comprado y qué le
   falta a la nave para la misión.
 - **Mercado negro:** solo lo ve Comercio. Tres vendedores con distinta confianza venden más barato, pero la
   ficha es "según el vendedor". Una inspección (básica o avanzada) muestra parte de la verdad; un defecto
   oculto o un vendedor que cobra y desaparece son riesgos reales. También hay gangas de verdad.
-- **Constructor (etapas 4 y 5):** quien maneja Ingeniería arma el cohete con las piezas compradas. Se arrastra
+- **Constructor (etapas 4 y 5):** se abre en la consola de ensamblaje del Hangar. Quien maneja Ingeniería arma el cohete con las piezas compradas. Se arrastra
   una pieza de la bodega al cohete: cada etapa se marca en dorado si encaja o en coral si no, y dice por qué.
   También se puede elegir una etapa y usar **Poner**. Clic en una pieza puesta para moverla o quitarla.
   Hay **Deshacer**, zoom, y un control por etapa para cargar menos combustible. Los demás lo ven en vivo.
@@ -99,14 +98,13 @@ Si el anfitrión se va, el rol pasa a quien lleva más tiempo en la sala.
   más el plan de vuelo tramo por tramo. Pasa el mouse por un número para ver qué significa.
 - **Revisión antes de despegar:** lo crítico impide despegar, las advertencias son un riesgo aceptado y las
   mejoras son opcionales. Al pasar de Validación a Vuelo se cobra el combustible.
-- **Vuelo (etapas 6 a 8):** la nave vuela a la Luna y vuelve, tramo por tramo, con un mapa del viaje.
-  **Vuelo** elige cuánto Δv quemar en cada encendido: el guiado no es perfecto, así que quedarse corto pide
-  otro encendido y pasarse gasta combustible que después falta. **Ingeniería** maneja la energía (normal o
-  ahorro) y repara. **Ciencia** busca el Prisma en la superficie (gasta batería). **Comercio** paga los
-  repuestos. Detrás de la Luna no hay señal sin satélite repetidor, y los encendidos pierden precisión.
+- **Vuelo (etapas 6 a 8):** se vive dentro de la nave (ver *El mundo jugable*). **Vuelo** pilotea cada
+  encendido a mano en el timón y el alunizaje en un minijuego; el guiado no es perfecto, así que quedarse corto
+  pide otro encendido y pasarse gasta combustible que después falta. Detrás de la Luna no hay señal sin
+  satélite repetidor, y los encendidos pierden precisión.
 - **Emergencias:** un motor, la antena, las patas o el espectrómetro pueden fallar; las piezas del mercado
-  negro con defectos ocultos fallan más. Cada emergencia ofrece salidas, y cada salida pide que la acepten
-  ciertos roles.
+  negro con defectos ocultos fallan más. Se resuelven con las manos: buscar el repuesto en el pañol, llevarlo y
+  repararlo (Comercio paga), o aceptar otra salida que piden ciertos roles.
 - **Evaluación (etapa 9):** el resultado, los números del vuelo y lo que se aprende de las decisiones.
   Volver con el Prisma completa la misión y desbloquea Life on Mars.
 - **Tutoriales:** la primera vez que llegas a algo nuevo (la sala, el mercado, el constructor, el vuelo…)
@@ -117,9 +115,32 @@ Si el anfitrión se va, el rol pasa a quien lleva más tiempo en la sala.
 - **Reconexión:** si recargas la página o se corta la red en plena misión, vuelves a tu lugar con tu rol.
   Mientras tanto, otro tripulante puede cubrirlo. Si cerraste la pestaña, entra otra vez con el código.
 
-## La física y las piezas (todavía sin pantalla)
+## El mundo jugable
 
-El motor de cálculo ya existe y está probado; el mercado, el constructor y el vuelo lo van a usar.
+La misión no es un menú: cada tripulante camina por un mundo 2D compartido y hace su parte con las manos.
+Solo el **mercado** y el **constructor** son pantallas de menú.
+
+- **Moverse:** <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> o flechas, o clic en el piso. Clic sobre un
+  puesto camina hasta él y lo usa al llegar. Junto a un puesto, <kbd>E</kbd> o Espacio lo usa.
+- **Tres lugares:** la **estación** (Laboratorio, Sala de misión, Simulador, Almacén y Hangar; cada sala es de
+  un rol), la **nave** en vuelo (Motores, Bodega, Ciencia y Cabina) y el **lado oculto de la Luna**.
+- **Tareas (arriba a la izquierda):** las tuyas, los puestos libres de roles sin dueño (opcionales) y en qué
+  puedes ayudar. Clic en el título la pliega. En pantallas angostas solo quedan tus tareas pendientes.
+  **Tripulación (derecha):** qué hace cada rol y cuántas tareas le faltan.
+- **Tipos de tarea:** minijuegos (afinar una señal, mantener una aguja en verde, soltar a tiempo, unir cables,
+  ordenar maniobras, interruptores) y **cargar** objetos de un puesto a otro (cajas, muestras, el Prisma).
+  Algunas tareas dan **ventajas** para el vuelo: zona del Prisma marcada, escáner calibrado, motores probados…
+- **Avanzar:** cuando cada rol terminó lo suyo, cualquiera mueve la palanca de etapa. El despegue lo da Vuelo.
+- **En vuelo:** antes de cada encendido hay **preparativos** opcionales (Ciencia fija la posición con el
+  rastreador de estrellas, Ingeniería ajusta la mezcla, Comercio asegura la carga suelta). Vuelo enciende en el
+  timón apuntando a mano.
+- **En la Luna:** Vuelo posa el módulo (minijuego de alunizaje: el combustible de más se paga en el regreso).
+  Ciencia escanea en distintos lugares y cruza las distancias para ubicar el Prisma, Ingeniería perfora,
+  Comercio lo carga hasta el módulo lunar y Vuelo despliega el panel solar de campo.
+
+## La física y las piezas
+
+El motor de cálculo lo usan el mercado, el constructor y el vuelo.
 
 - `js/physics.js`: ecuación del cohete, empuje/peso, gasto de combustible, órbitas, transferencias,
   ventanas de lanzamiento, arrastre y baterías. Todo en unidades del Sistema Internacional.
@@ -160,7 +181,13 @@ ad-astra/
 │   ├── game.js         La partida: marco y cambio de pantalla según la escena
 │   ├── narrative.js    Historia página por página (prólogo e informes)
 │   ├── constellation.js  Selector de misiones
-│   ├── desk.js         Mesa de misión: etapas y un escritorio por rol
+│   ├── world.js        El mundo jugable: movimiento, puestos, HUD, mercado y constructor en paneles
+│   ├── worldmaps.js    Mapas de la estación, la nave y la Luna (salas, puertas, puestos, caminos)
+│   ├── worldart.js     Dibujo de los mapas y los puestos
+│   ├── tasks.js        Tareas por rol y etapa, ventajas y preparativos de vuelo (también las usa el servidor)
+│   ├── minigames.js    Los minijuegos de las tareas
+│   ├── pilotgames.js   Encendido a mano y alunizaje
+│   ├── frame.js        Marco común de las ventanas de minijuego
 │   ├── marketview.js   Mercado, mercado negro y bodega
 │   ├── builder.js      Constructor de cohetes
 │   ├── flightview.js   El vuelo: mapa, paneles por rol, emergencias y resultado
@@ -185,7 +212,8 @@ ad-astra/
 │   ├── game.js         Las reglas de la partida: escenas, etapas y permisos
 │   ├── economy.js      Presupuesto, compras y bodega
 │   ├── build.js        Armado del cohete
-│   └── flight.js       El vuelo: encendidos, energía y emergencias
+│   ├── world.js        Tareas hechas y objetos que se cargan
+│   └── flight.js       El vuelo: encendidos, energía, escaneo, perforación y emergencias
 ├── tests/simulate.js   Prueba con jugadores simulados
 └── render.yaml         Cómo se publica en Render (link fijo)
 ```
@@ -209,7 +237,11 @@ ad-astra/
 | Cambiar los textos del prólogo o del informe     | `js/story.js`                                        |
 | Poner un dibujo final en la historia             | Guarda la imagen en `assets/story/` y agrégala en `js/art.js` → `IMAGES` |
 | Cambiar la ficha de una misión o sus etapas      | `js/missions.js`                                     |
-| Las pantallas de la partida                      | `js/narrative.js`, `js/constellation.js`, `js/desk.js` (las elige `js/game.js`) |
+| Las pantallas de la partida                      | `js/narrative.js`, `js/constellation.js`, `js/world.js` (las elige `js/game.js`) |
+| Las tareas de cada rol y etapa                   | `js/tasks.js` → `TASKS`, `PERKS`, `PREP`           |
+| Dónde están las salas y los puestos              | `js/worldmaps.js`                                    |
+| Dificultad del alunizaje                         | `js/pilotgames.js` → `playLander` (`GRAVITY`, `PAR`, `SOFT_DOWN`) |
+| Cómo se ve la Luna o una sala                    | `js/worldart.js` (`paintMoon`, `paintIndoor`)        |
 | Programar las reglas del juego                   | `server/game.js` → `isGameAction` y `applyAction`    |
 | Cambiar las reglas que elige el anfitrión        | `js/shared.js` → `GAME_SETTINGS`                     |
 | Por dónde no se puede caminar (muebles), el piso | `js/shared.js` → `LOBBY_MAP`                         |

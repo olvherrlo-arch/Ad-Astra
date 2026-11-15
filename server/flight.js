@@ -208,7 +208,9 @@ const signalFor = (ship, flight, leg) => hasWorking(ship, 'comms') && (!leg?.far
 //  Empezar el vuelo
 // ============================================================
 
-/** El vuelo recién despegado: devuelve `{ flight, ship }`. */
+/**
+ * El vuelo recién despegado: devuelve `{ flight, ship }`.
+ * @param {{ rocket: any, inventory: any, vaultItems: any, legs: any, seed: number, perks?: { zone?: boolean, [k: string]: any } }} args */
 export const startFlight = ({ rocket, inventory, vaultItems, legs, seed, perks = {} }) => {
   const ship = { ...buildShip({ rocket, inventory, vaultItems }), seed, perks, prismSpot: pickPrismSpot(seed) };
   const flight = {

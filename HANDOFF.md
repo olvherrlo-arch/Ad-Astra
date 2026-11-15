@@ -19,16 +19,20 @@ La misión ya no es una mesa con menús y "visto bueno". Ahora se juega caminand
 ## Probado en navegador
 Estación, tarea de cables de punta a punta, los ocho minijuegos, mapa de la nave, mapa lunar y un escaneo.
 
+## Hecho en el segundo relevo
+- README.md y CLAUDE.md actualizados con el mundo jugable.
+- Luna: trama de sombra más suave en `paintMoon` (puntos más chicos y separados, cráteres más claros).
+- Alunizaje más justo: `PAR` 125 → 140 (≈ 1,6 veces el mínimo), suave con caída < 10 y costado < 7.
+- HUD angosto (≤ 760 px): solo tus tareas pendientes; en un teléfono pasó de tapar el 19 % al 10 %.
+- `tsc` sin errores (la ruta de la copia vieja sí existe en esta PC). `npm test` completo en verde.
+
 ## Falta
-1. Actualizar `README.md` y `CLAUDE.md` con todo lo de arriba.
-2. Probar en navegador, sin atajos por consola: perforar, cargar el Prisma, despegar de la Luna, emergencias (repuesto y reparación), reentrada, Evaluación y volver al lobby.
-3. Probar con 2 a 4 jugadores reales: que se vean caminar, cargar y pilotear en vivo (`act` en `player:move`).
-4. Luna: la trama de sombra es muy densa. Bajar la densidad en `paintMoon` (`js/worldart.js`).
-5. Alunizaje: ajustar dificultad (`GRAVITY`, `PAR` en `js/pilotgames.js`) con jugadores reales.
-6. HUD en pantallas angostas: la lista de tareas tapa mucho. Ya se pliega con clic; revisar.
-7. Revisión de tipos con `tsc` (ver `CLAUDE.md`; la ruta vieja no existe en esta PC).
-8. `.claude/skills/` quedó sin subir a propósito: decidir si va al repo.
-9. Pendiente de antes: evaluación con nota (fase 7) y misiones 2 y 3 (fase 8).
+1. Probar en navegador de punta a punta, sin atajos: perforar, cargar el Prisma, despegar de la Luna,
+   emergencias (repuesto y reparación), reentrada, Evaluación y volver al lobby. Necesita la ventana a la vista:
+   con el panel oculto no hay requestAnimationFrame y el mundo se congela.
+2. Probar con 2 a 4 personas reales (verse caminar, cargar, pilotear en vivo) y afinar el alunizaje con ellas.
+3. `.claude/skills/` quedó sin subir a propósito: decidir si va al repo.
+4. Evaluación con nota (fase 7) y misiones 2 y 3 (fase 8).
 
 ## Regla de diseño (del usuario)
 Juego real, no menús. Solo mercado y constructor son menús. Cada rol hace cosas con las manos, la cooperación es necesaria y nadie espera sin hacer nada.

@@ -66,6 +66,7 @@ const HUD_HTML = `
   </div>
   <button class="hud-privacy"></button>
   <button class="hud-start">Despegar</button>
+  <p class="hud-why" role="status" hidden></p>
   <button class="hud-ready" aria-pressed="false">Listo</button>
 </div>
 
@@ -179,6 +180,12 @@ export const mountHud = (container) => {
     const host = isHost();
     const me = getMe();
     const blocker = startBlocker(room);
+    const away = room.players.filter((p) => p.connected === false);
+    // El anfitrión ve en palabras por qué todavía no puede despegar (no solo al pasar el mouse).
+    const why = $('.hud-why');
+    const awayText = away.length ? `Reconectando: ${away.map((p) => p.name).join(', ')}.` : '';
+    why.hidden = !host || (!blocker && !awayText);
+    why.textContent = [blocker ? `${blocker}.` : '', awayText].filter(Boolean).join(' ');
 
     renderCode();
     count.querySelector('span').textContent = `${room.players.length}/${room.maxPlayers}`;
