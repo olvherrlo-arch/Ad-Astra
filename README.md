@@ -54,6 +54,23 @@ Cambios en `server/` o en `js/shared.js` con `npm start`: detén el servidor (Ct
 
 **Play → Solo** abre una sala privada solo para ti y despega sola: manejas los cuatro roles.
 
+## Misión 2: Life on Mars
+
+Llevar el Prisma a Marte y despertarlo con el rayo de la leyenda (rojo, seguido de un destello azul).
+
+- **Preparación**: la misma estación, con otro trabajo en cada puesto. El cohete lunar no sirve: gasta su módulo de
+  alunizaje antes de llegar al suelo. Hay que pensar una nave nueva (una etapa grande para salir, corregir y frenar).
+- **Viaje**: órbita terrestre, inyección hacia Marte, corrección de rumbo. Los Δv salen de las fórmulas reales.
+- **Llegada**: frenar para entrar en órbita, mantener el ángulo de entrada en la atmósfera y aterrizar a mano
+  (Marte tira más que la Luna).
+- **Superficie**: Ciencia junta y analiza muestras, Comercio descarga y reparte, Ingeniería arma, cablea y calibra
+  el aparato, Vuelo enlaza la antena y sigue el clima. Recién con todo listo Vuelo da la alerta.
+- **Tormenta**: polvo, viento y casi nada de Sol (la nave vive de sus baterías). Cada rol sostiene algo y Vuelo
+  sincroniza el experimento con el rayo.
+- **El despertar**: Marte cambia a la vista; se registra el resultado y se cierra la misión. Se desbloquea la misión 3.
+
+Se puede jugar con una sola persona (Play → Solo): los roles sin dueño los maneja quien esté.
+
 ## Sandbox (modo libre)
 
 En el menú principal, **Sandbox** abre un hangar solo para ti, sin lobby ni espera, con **créditos ilimitados**:

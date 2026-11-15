@@ -11,7 +11,7 @@
  *
  * La historia del Prisma y de Aztlán es ficción del juego, no ciencia.
  */
-import { flightPlanFor, moonFlightPlan, sandboxFlightPlan } from './flightplans.js';
+import { flightPlanFor, marsFlightPlan, moonFlightPlan, sandboxFlightPlan } from './flightplans.js';
 import { UNLIMITED_CREDITS } from './partinfo.js';
 import { planOf } from './missionplan.js';
 
@@ -136,6 +136,35 @@ const MOON_STAGES = [
   },
 ];
 
+const role4 = (scientist, merchant, engineer, pilot) => ({ scientist, merchant, engineer, pilot });
+
+/** Misión 2. La preparación usa la misma estación; después del viaje, todo pasa en la superficie de Marte. */
+/** @type {Stage[]} */
+const MARS_STAGES = [
+  { id: 'briefing', name: 'Informe', tools: false, summary: 'El objetivo: llevar el Prisma a Marte y despertarlo con el rayo de la leyenda.',
+    tasks: role4('Estudia el clima de Marte y sus tormentas.', 'Revisa el presupuesto del viaje.', 'Revisa qué pide una nave interplanetaria.', 'Repasa la ruta: órbita, inyección, corrección, órbita de Marte, entrada y aterrizaje.') },
+  { id: 'planning', name: 'Planificación', tools: false, summary: 'Un viaje de meses: energía, masa y combustible se deciden ahora.',
+    tasks: role4('Elige la zona de aterrizaje con un meteorito marciano.', 'Pesa la carga del experimento.', 'Calibra la grúa para una nave más grande.', 'Ensaya la ventana de lanzamiento: se abre cada 26 meses.') },
+  { id: 'market', name: 'Mercado', tools: true, tool: 'market', summary: 'Se compran las piezas. Marte pide más motor para aterrizar y más batería para la tormenta.',
+    tasks: role4('Calibra los instrumentos del experimento.', 'Compra las piezas sin quedarte sin reserva.', 'Prueba los motores en el banco.', 'Practica la inyección hacia Marte.') },
+  { id: 'build', name: 'Construcción', tools: true, tool: ['builder', 'market'], summary: 'Se arma la nave interplanetaria y su módulo de aterrizaje.',
+    tasks: role4('Carga el módulo experimental.', 'Entrega las piezas en el hangar.', 'Ensambla lanzador, nave y módulo de aterrizaje.', 'Configura la cabina.') },
+  { id: 'validation', name: 'Validación', tools: true, tool: ['builder', 'market'], summary: 'Revisión final. Al seguir, se llenan los tanques y se despega.',
+    tasks: role4('Carga el Prisma en su contenedor.', 'Carga los repuestos.', 'Corrige los errores críticos y purga las líneas.', 'Haz la lista de despegue.') },
+  { id: 'flight', name: 'Viaje', tools: true, tool: 'flight', summary: 'Órbita terrestre, inyección hacia Marte y corrección de rumbo.',
+    tasks: role4('Fija la posición con las estrellas y vigila el Prisma.', 'Asegura la carga y cuida los repuestos.', 'Ajusta los motores y la energía.', 'Pilotea cada encendido.') },
+  { id: 'arrival', name: 'Llegada a Marte', tools: true, tool: 'flight', summary: 'Frenar para entrar en órbita de Marte, atravesar su atmósfera y aterrizar a mano.',
+    tasks: role4('Lee la atmósfera y fija la posición.', 'Asegura la carga para la entrada.', 'Vigila el escudo y el motor de aterrizaje.', 'Mantén el ángulo de entrada y aterriza.') },
+  { id: 'surface', name: 'Superficie', tools: true, tool: 'flight', summary: 'Explorar, armar el aparato y dejar el Prisma listo.',
+    tasks: role4('Recoge y analiza muestras; coloca el Prisma.', 'Descarga suministros y lleva los materiales.', 'Arma, cablea y calibra el aparato.', 'Enlaza la antena y sigue la tormenta.') },
+  { id: 'storm', name: 'Tormenta', tools: true, tool: 'flight', summary: 'Llega la tormenta: hay que sostener el experimento y sincronizarlo con el rayo.',
+    tasks: role4('Mantén estable la lectura del Prisma.', 'Lleva los escudos de emergencia.', 'Sujeta el aparato contra el viento.', 'Mantén el enlace y sincroniza con el rayo.') },
+  { id: 'bloom', name: 'El despertar', tools: true, tool: 'flight', summary: 'El Prisma respondió. Queda registrar lo que pasó.',
+    tasks: role4('Registra los resultados.', 'Guarda una muestra del primer brote.', 'Apaga y asegura el aparato.', 'Transmite la noticia a la Tierra.') },
+  { id: 'debrief', name: 'Evaluación', tools: true, tool: 'flight', summary: 'Qué salió bien, qué falló y por qué.',
+    tasks: role4('Resume el resultado científico.', 'Resume en qué se gastó.', 'Resume cómo se comportaron las piezas.', 'Resume el vuelo.') },
+];
+
 /**
  * Las tres misiones de la campaña, en orden. Cada una se desbloquea al completar la anterior.
  * Por ahora solo la primera tiene etapas.
@@ -172,9 +201,16 @@ export const MISSIONS = [
     goal: 'Llevar el Prisma a Marte y activarlo con un rayo.',
     duration: '5 a 8 minutos',
     difficulty: 2,
-    equipment: ['Nave interplanetaria', 'Módulo experimental', 'Sistema de aterrizaje', 'Paneles y baterías'],
+    equipment: ['Nave interplanetaria', 'Módulo de aterrizaje con patas y motor', 'Escudo térmico', 'Contenedor del Prisma e instrumentos', 'Paneles y baterías para la tormenta'],
     star: { x: 53, y: 30 },
-    stages: [],
+    stages: MARS_STAGES,
+    budget: 15_000, //  valor de juego: lo mismo que la Luna, para una nave que hay que pensar de nuevo
+    maxTier: 'epic',
+    requirements: {
+      capabilities: ['command', 'life-support', 'guidance', 'comms', 'heatshield', 'landing-gear', 'landing-engine', 'prism-cargo'],
+      recommended: ['attitude', 'prism-scan'],
+    },
+    flightPlan: marsFlightPlan(),
   },
   {
     id: 'exodus',

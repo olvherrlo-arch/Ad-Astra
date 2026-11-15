@@ -419,6 +419,14 @@ export const applyFlightAction = ({ flight, ship, legs, credits, stageId }, acti
       if (refused) return refused;
       if (leg.dv > 0) return { error: 'Este tramo se hace encendiendo los motores.' };
       if (leg.id === 'surface' && !work.flight.prism) return { error: 'Todavía no encontraron el Prisma. Si se van sin él, la misión fracasa: para rendirse, primero tiene que fallar la búsqueda.' };
+      if (leg.id === 'experiment') note(work, `${actor.name} dio la alerta: la tormenta ya está encima. Todos a sus puestos.`, 'warn', true);
+      if (leg.id === 'storm') {
+        // El momento de la leyenda: el experimento se sincroniza con el rayo.
+        work.flight.activated = true;
+        work.flight.sync = Number.isFinite(action.quality) ? Math.max(0, Math.min(1, action.quality)) : 0.5;
+        note(work, `${actor.name} sincronizó el experimento. Un rayo rojo cae sobre el Prisma… y enseguida, un destello azul.`, 'good', true);
+        note(work, 'Una onda de energía recorre la llanura. El suelo de Marte empieza a cambiar.', 'good', true);
+      }
       completeLeg(work, leg);
       return finish(work);
     }
@@ -467,7 +475,7 @@ const burn = (work, leg, action, actor) => {
     const twr = thrustToWeight(thrust, shipMass(ship), gravityAt(BODIES[leg.body]));
     if (twr < 1) {
       return failMission(work, leg.id === 'descent'
-        ? `al bajar, los motores no alcanzaron a frenar la caída (empuje/peso ${number(twr, 2)} en la Luna). La nave se estrelló.`
+        ? `al bajar, los motores no alcanzaron a frenar la caída (empuje/peso ${number(twr, 2)} en ${leg.body === 'mars' ? 'Marte' : 'la Luna'}). La nave se estrelló.`
         : `los motores no pueden levantar la nave (empuje/peso ${number(twr, 2)}).`);
     }
   }
@@ -619,7 +627,7 @@ const completeLeg = (work, leg) => {
   if (!signalFor(ship, flight, leg)) flight.blackout = true;
 
   // En la superficie trabajan los instrumentos: la ciencia que llega a la Tierra (js/science.js).
-  if (leg.id === 'surface') {
+  if (leg.id === 'surface' || leg.id === 'experiment') {
     flight.science = scienceReport({ items: allItems(ship), leg, relay: flight.relay, saving: flight.mode === 'saving' });
     const { value, max, generated, sent } = flight.science;
     if (max > 0) {
@@ -657,7 +665,7 @@ const completeLeg = (work, leg) => {
     }
   }
   // En el viaje largo, la antena puede fallar.
-  if (leg.id === 'tli') {
+  if (leg.id === 'tli' || leg.id === 'tmi') {
     const antenna = allItems(ship).find((item) => (item.provides ?? []).includes('comms') && working(item));
     if (antenna && roll(work) < antenna.failureRate) {
       antenna.failed = true;
@@ -684,8 +692,8 @@ const advanceLeg = (work, leg, held) => {
   flight.progress = 0;
   if (!next) {
     flight.phase = 'over';
-    // Un vuelo de prueba (Sandbox) no busca nada: basta con volver.
-    flight.result = !legs.some((item) => item.id === 'surface')
+    // Un tramo final con `endText` (Marte) cierra la misión con éxito; un vuelo de prueba (Sandbox) no busca nada.
+    flight.result = leg.endText ? { ok: true, text: leg.endText } : !legs.some((item) => item.id === 'surface')
       ? { ok: true, text: 'Vuelo de prueba completo: la nave volvió entera a la Tierra.' }
       : flight.prism
       ? { ok: true, text: 'La nave volvió a la Tierra con el Prisma a bordo.' }

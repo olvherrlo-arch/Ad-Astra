@@ -100,6 +100,63 @@ export const moonFlightPlan = (plan = DEFAULT_PLAN) => {
 };
 
 /**
+ * El viaje a Marte (misión 2). Lo real: la transferencia de Hohmann entre las órbitas de la Tierra y Marte
+ * alrededor del Sol (unos 8,5 meses) y el encendido que hace falta para salir de la órbita baja con esa
+ * velocidad. Estimaciones redondas: la corrección de rumbo (en misiones reales son decenas de m/s) y el
+ * frenado final con motores (el aire fino de Marte frena casi todo, pero no alcanza para posarse).
+ * Valores de juego: las horas de cada tramo (en el crucero la nave "hiberna") y el Sol durante la tormenta.
+ * Etapas de la misión: flight (viaje) → arrival (llegada) → surface (experimento) → storm → bloom.
+ */
+export const marsFlightPlan = () => {
+  const { sun, earth, mars } = BODIES;
+  const leo = earth.radius + LOW_EARTH_ORBIT;
+  const transfer = hohmann(sun.mu, earth.orbitRadius, mars.orbitRadius);
+  const days = Math.round(transfer.time / 86_400);
+  const lowMarsOrbit = mars.radius + 300_000;
+  return [
+    {
+      id: 'ascent', name: 'Subir a órbita terrestre', dv: round(circularVelocity(earth.mu, leo) + ASCENT_LOSSES),
+      body: 'earth', minTwr: 1.15, atmosphere: true, stage: 'flight', hours: 0.2, sun: 1,
+      note: `Velocidad de órbita a ${LOW_EARTH_ORBIT / 1000} km más unas pérdidas estimadas de ${ASCENT_LOSSES} m/s por gravedad y aire.`,
+    },
+    {
+      id: 'tmi', name: 'Inyección hacia Marte', dv: round(escapeBurn(earth.mu, leo, transfer.dv1)), stage: 'flight', hours: 200, sun: 1,
+      note: `Un encendido largo para escapar de la Tierra y quedar en una órbita alrededor del Sol que toca la de Marte. El viaje dura unos ${days} días.`,
+    },
+    {
+      id: 'mcc', name: 'Corrección de rumbo', dv: 60, stage: 'flight', hours: 200, sun: 1,
+      note: 'A mitad de camino, un error mínimo de rumbo ya son miles de kilómetros al llegar. Se corrige con un encendido corto (estimación).',
+    },
+    {
+      id: 'moi', name: 'Entrar en órbita de Marte (300 km)', dv: round(escapeBurn(mars.mu, lowMarsOrbit, transfer.dv2)), stage: 'arrival', hours: 6, sun: 0.5,
+      note: 'Al llegar, la nave va más rápido que Marte: hay que frenar para que el planeta la atrape. Desde la órbita se espera el momento de bajar.',
+    },
+    {
+      id: 'entry', name: 'Entrada en la atmósfera de Marte', dv: 0, needs: ['heatshield'], stage: 'arrival', hours: 1, sun: 0.5,
+      note: 'El aire de Marte es cien veces más fino que el de la Tierra, pero a esa velocidad igual quema: frena casi todo sin gastar combustible.',
+    },
+    {
+      id: 'descent', name: 'Aterrizar en Marte', dv: 700, body: 'mars', minTwr: 1.3, needs: ['landing-gear', 'landing-engine'],
+      stage: 'arrival', hours: 1, sun: 0.5,
+      note: 'El aire fino no alcanza para posarse: el final se frena con motores (estimación). Marte tira más del doble que la Luna.',
+    },
+    {
+      id: 'experiment', name: 'Preparar el experimento', dv: 0, needs: ['prism-cargo'], stage: 'surface', hours: 8, sun: 0.45, science: 1.2, gate: true,
+      note: 'No gasta combustible. Los paneles rinden menos que en la Tierra: Marte recibe menos de la mitad de la luz.',
+    },
+    {
+      id: 'storm', name: 'La tormenta', dv: 0, stage: 'storm', hours: 3, sun: 0.05, gate: true,
+      note: 'El polvo tapa el Sol: la nave vive casi solo de sus baterías.',
+    },
+    {
+      id: 'bloom', name: 'Registrar el resultado', dv: 0, stage: 'bloom', hours: 1, sun: 0.6, gate: true,
+      endText: 'El rayo despertó al Prisma y Marte empezó a cambiar. La leyenda de Aztlán era cierta.',
+      note: 'Queda dejar todo anotado y avisar a la Tierra.',
+    },
+  ];
+};
+
+/**
  * Vuelos de prueba del Sandbox: los mismos tramos reales del viaje lunar, recortados según el perfil
  * (js/missionplan.js → PROFILES). Todo se vuela en la etapa `flight`; no hay Prisma que buscar.
  * @param {{ site?: string, orbit?: string, profile?: string }} [plan]
@@ -123,7 +180,7 @@ export const sandboxFlightPlan = (plan = DEFAULT_PLAN) => {
   ];
 };
 
-export const FLIGHT_PLANS = { moon: moonFlightPlan, sandbox: sandboxFlightPlan };
+export const FLIGHT_PLANS = { moon: moonFlightPlan, mars: marsFlightPlan, sandbox: sandboxFlightPlan };
 
 const cache = new Map();
 /** El plan de vuelo de una misión para un plan elegido (se calcula una vez por combinación). */

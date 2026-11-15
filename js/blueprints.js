@@ -26,6 +26,24 @@ export const EXAMPLE_BLUEPRINTS = {
       ],
     ],
   },
+  /**
+   * Cuatro etapas con piezas comunes para Marte. La tercera es grande: sale de la Tierra, corrige el rumbo
+   * y frena al llegar. La cuarta aterriza y se queda: lleva la cápsula, el Prisma y todo el equipo.
+   * (El cohete lunar no sirve aquí: gasta su módulo de alunizaje antes de llegar al suelo.)
+   */
+  mars: {
+    name: 'Marciana de referencia',
+    stages: [
+      [...times(5, 'engine-atm-l'), ...times(3, 'tank-kero-l'), 'separator'], //   despegue
+      [...times(2, 'engine-vac-l'), ...times(2, 'tank-hydro-l'), 'separator'], //  hasta la órbita terrestre
+      [...times(2, 'engine-vac-s'), ...times(3, 'tank-hydro-m'), 'separator'], //  inyección, corrección y órbita de Marte
+      [
+        ...times(2, 'engine-lander'), 'landing-legs', 'tank-hyper-m', 'tank-hyper-s', 'thrusters', // aterrizaje
+        'life-support', 'battery', 'battery', 'solar-panel', 'solar-panel',
+        'antenna', 'spectrometer', 'sample-vault', 'capsule', 'nose-cone',
+      ],
+    ],
+  },
 };
 
 /**

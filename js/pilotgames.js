@@ -246,20 +246,21 @@ export const playBurn = ({ title, how = '', target, sigma = 0.015, sim = false, 
 
 /**
  * El alunizaje, a mano.
- * @param {{ title: string, budget: number, onProgress?: (fraction: number, thrust: number) => void }} options  budget = Δv que pide el tramo (m/s)
+ * @param {{ title: string, budget: number, onProgress?: (fraction: number, thrust: number) => void, gravity?: number, how?: string }} options  budget = Δv que pide el tramo (m/s)
  * @returns {Promise<{ ok: boolean, dv?: number, aim?: number, touchdown?: 'soft' | 'hard' | 'crash' }>}
+ * `gravity` y `how` cambian según dónde se aterriza (la Luna por defecto; Marte tira más).
  */
-export const playLander = ({ title, budget, onProgress = () => {} }) =>
+export const playLander = ({ title, budget, onProgress = () => {}, gravity = 6, how = 'Gira y empuja para frenar. Pósate despacio y derecho sobre la marca dorada: sin aire, todo el frenado es del motor.' }) =>
   runGame({
     title,
-    how: 'Gira y empuja para frenar. Pósate despacio y derecho sobre la marca dorada: sin aire, todo el frenado es del motor.',
+    how,
     keysHint: 'A / D o ◀ ▶ giran · ESPACIO o ▲ empuja',
     width: 720, height: 400, closable: false,
   }, (api) => {
     const { ctx, width: W, height: H, keys, pointer } = api;
     // Unidades del juego (no son metros reales): gravedad lunar "acelerada" para que dure unos 15 s.
     // PAR ≈ 1,6 veces el mínimo (unas 88 unidades frenando justo a tiempo): deja margen a quien recién aprende.
-    const GRAVITY = 6, ACCEL = 15, PAR = 140, FUEL = PAR * 1.6, SOFT_DOWN = 10, SOFT_SIDE = 7;
+    const GRAVITY = gravity, ACCEL = 15, PAR = 140 * (gravity / 6), FUEL = PAR * 1.6, SOFT_DOWN = 10, SOFT_SIDE = 7;
     const GROUND = H - 46, SCALE = 1.05, PAD = 44;
     const toScreen = (x, y) => [W / 2 + x * SCALE, GROUND - y * SCALE];
     const terrain = createRng(Math.floor(Math.random() * 1e6));

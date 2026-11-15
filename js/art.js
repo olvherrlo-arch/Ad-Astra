@@ -236,6 +236,92 @@ const ART = {
     ctx.fill();
   },
 
+  /** Marte desde la nave que llega. */
+  mars: (ctx) => {
+    space(ctx, 61);
+    const disc = circle(ctx, 300, 190, 150);
+    paperFill(ctx, disc);
+    inkFill(ctx, disc, INK.coral);
+    inkFill(ctx, disc, halftone(ctx, INK.gold, 0.35, 4));
+    ctx.save();
+    disc();
+    ctx.clip();
+    for (const [x, y, r] of [[240, 140, 30], [350, 220, 44], [290, 270, 20], [380, 120, 16]]) inkFill(ctx, circle(ctx, x, y, r), halftone(ctx, INK.navy, 0.35, 3));
+    // Casquete polar
+    paperFill(ctx, () => { ctx.beginPath(); ctx.ellipse(300, 46, 70, 16, 0, 0, Math.PI * 2); });
+    ctx.restore();
+    shade(ctx, 300, 190, 150, 0.22);
+    keyLine(ctx, disc, 2.6);
+    // La nave, chica, llegando
+    const ship = () => polyPath(ctx, [[60, 250], [96, 236], [104, 246], [70, 262]]);
+    paperFill(ctx, ship);
+    inkFill(ctx, ship, INK.teal);
+    keyLine(ctx, ship, 1.8);
+    starPath(ctx, 52, 262, 8, 2);
+    ctx.fillStyle = INK.gold;
+    ctx.fill();
+  },
+
+  /** La tormenta de polvo que tapa el Sol. */
+  storm: (ctx) => {
+    ctx.fillStyle = '#b5553d';
+    ctx.fillRect(0, 0, W, H);
+    const all = () => { ctx.beginPath(); ctx.rect(0, 0, W, H); };
+    halftoneGradient(ctx, all, INK.navy, (px, py) => 0.25 + 0.5 * Math.abs(Math.sin(px * 0.012 + py * 0.03)) * (1 - py / H), { x: 0, y: 0, w: W, h: H }, 5);
+    // Suelo y el aparato a contraluz
+    const ground = () => polyPath(ctx, [[0, 250], [140, 238], [300, 246], [W, 232], [W, H], [0, H]]);
+    paperFill(ctx, ground, '#7a2f24');
+    inkFill(ctx, ground, halftone(ctx, INK.navy, 0.6, 3));
+    ctx.strokeStyle = INK.navy;
+    ctx.lineWidth = 4;
+    for (const dx of [-30, 0, 30]) { ctx.beginPath(); ctx.moveTo(240 + dx, 246); ctx.lineTo(240, 176); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(240, 176); ctx.lineTo(240, 140); ctx.stroke();
+    prism(ctx, 240, 190, 16);
+    // Ráfagas
+    ctx.strokeStyle = withAlpha(INK.paper, 0.55);
+    ctx.lineWidth = 2;
+    for (const [x, y, w] of [[20, 60, 180], [220, 96, 220], [60, 150, 150], [300, 200, 160], [10, 214, 120]]) { ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + w / 2, y - 12, x + w, y + 4); ctx.stroke(); }
+    // Un relámpago lejano
+    const far = () => polyPath(ctx, [[400, 0], [384, 50], [396, 52], [376, 104], [410, 44], [398, 42], [414, 0]]);
+    paperFill(ctx, far);
+    inkFill(ctx, far, INK.coral, 0.6);
+  },
+
+  /** Marte después del rayo: el primer verde. */
+  bloom: (ctx) => {
+    ctx.fillStyle = '#cfe0e6';
+    ctx.fillRect(0, 0, W, H);
+    const all = () => { ctx.beginPath(); ctx.rect(0, 0, W, 200); };
+    halftoneGradient(ctx, all, FLASH_BLUE, (px, py) => 0.5 * (1 - py / 200), { x: 0, y: 0, w: W, h: 200 }, 5);
+    const hills = () => polyPath(ctx, [[0, 190], [90, 150], [180, 178], [290, 136], [400, 172], [W, 150], [W, H], [0, H]]);
+    paperFill(ctx, hills, '#d98a63');
+    inkFill(ctx, hills, halftone(ctx, '#7a2f24', 0.3, 4));
+    keyLine(ctx, hills, 2);
+    // Manchas verdes que se abren desde el Prisma
+    for (const [x, y, r] of [[240, 262, 120], [120, 286, 70], [380, 280, 80], [250, 220, 60]]) {
+      const patch = () => { ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.32, 0, 0, Math.PI * 2); };
+      paperFill(ctx, patch, '#bfe3b4');
+      inkFill(ctx, patch, halftone(ctx, INK.teal, 0.5, 3.6));
+    }
+    ctx.strokeStyle = INK.navy;
+    ctx.lineWidth = 2;
+    for (const [x, y, s] of [[120, 280, 16], [170, 262, 22], [300, 268, 20], [352, 284, 15], [410, 270, 18], [60, 296, 12]]) {
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - s); ctx.stroke();
+      for (const side of [-1, 1]) {
+        const leaf = () => { ctx.beginPath(); ctx.ellipse(x + side * s * 0.45, y - s, s * 0.45, s * 0.22, side * -0.5, 0, Math.PI * 2); };
+        paperFill(ctx, leaf, '#5fae5a');
+        keyLine(ctx, leaf, 1.4);
+      }
+    }
+    // El Prisma, encendido
+    const glow = circle(ctx, 240, 196, 60);
+    halftoneGradient(ctx, glow, FLASH_BLUE, (px, py) => 0.9 * Math.max(0, 1 - Math.hypot(px - 240, py - 196) / 60), { x: 180, y: 136, w: 120, h: 120 }, 4.4, 'source-over');
+    prism(ctx, 240, 200, 26, INK.teal);
+    starPath(ctx, 240, 180, 16, 4);
+    ctx.fillStyle = INK.paper;
+    ctx.fill();
+  },
+
   /** La cara oculta de la Luna: la mitad que nunca se ve desde la Tierra. */
   moon: (ctx) => {
     space(ctx, 55);

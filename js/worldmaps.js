@@ -142,14 +142,40 @@ const MOON = finish({
   prismZone: { x: 660, y: 230, w: 1020, h: 660 },
 });
 
-export const MAPS = { station: STATION, ship: SHIP, moon: MOON };
+/** La llanura marciana donde se hace el experimento (misión 2). */
+const MARS = finish({
+  id: 'mars', name: 'Marte', width: 1800, height: 1000, wall: 0, outdoor: true,
+  rooms: [{ id: 'surface', name: '', role: null, x: 40, y: 150, w: 1720, h: 810, plain: true }],
+  doors: [],
+  spawn: { x: 300, y: 580 },
+  rocks: [
+    { x: 620, y: 250, w: 70, h: 30, height: 44 }, { x: 1180, y: 700, w: 90, h: 36, height: 56 },
+    { x: 1560, y: 520, w: 70, h: 30, height: 40 }, { x: 980, y: 860, w: 80, h: 34, height: 46 },
+    { x: 1640, y: 240, w: 60, h: 26, height: 36 }, { x: 420, y: 880, w: 70, h: 30, height: 38 },
+  ],
+  stations: [
+    { id: 'hatch', room: 'surface', kind: 'lander', label: 'Módulo de aterrizaje', x: 200, y: 440, w: 150, h: 50, height: 150 },
+    { id: 'depot', room: 'surface', kind: 'crates', label: 'Depósito de suministros', x: 440, y: 640, w: 130, h: 44, height: 50 },
+    { id: 'labcart', room: 'surface', kind: 'cart', label: 'Laboratorio de campo', x: 500, y: 380, w: 84, h: 30, height: 40 },
+    { id: 'dish', room: 'surface', kind: 'antenna', label: 'Antena de campo', x: 660, y: 820, w: 110, h: 34, height: 80 },
+    { id: 'mast', room: 'surface', kind: 'mast', label: 'Mástil meteorológico', x: 800, y: 250, w: 44, h: 24, height: 150 },
+    { id: 'rig', room: 'surface', kind: 'rig', label: 'Aparato del experimento', x: 960, y: 500, w: 130, h: 46, height: 120 },
+    { id: 'generator', room: 'surface', kind: 'machine', label: 'Generador', x: 1150, y: 430, w: 100, h: 32, height: 70 },
+    { id: 'outcrop', room: 'surface', kind: 'outcrop', label: 'Formación rocosa', x: 1380, y: 320, w: 150, h: 46, height: 96 },
+  ],
+});
+
+export const MAPS = { station: STATION, ship: SHIP, moon: MOON, mars: MARS };
+
+/** Tramos que se juegan caminando afuera, y en qué mapa. */
+const SURFACE_MAPS = { surface: 'moon', experiment: 'mars', storm: 'mars', bloom: 'mars' };
 
 /** En qué mapa está la tripulación según cómo va la partida. */
 export const mapIdFor = (data) => {
   const flight = data?.flight;
   if (!flight || flight.phase === 'over') return 'station';
   const leg = getMission(data.missionId)?.flightPlan?.[flight.legIndex];
-  return leg?.id === 'surface' ? 'moon' : 'ship';
+  return SURFACE_MAPS[leg?.id] ?? 'ship';
 };
 
 /** ¿Se puede estar parado en este punto? (dentro de un piso y fuera de las huellas que bloquean). */

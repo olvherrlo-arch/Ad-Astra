@@ -14,7 +14,8 @@ import { MINIGAMES, isTaskDone, stageTasks, taskProgress } from '../js/tasks.js'
  * @param {(role: string) => any} whoIs           qué tripulante tiene ese rol
  */
 export const doStageTasks = (send, data, stageId, whoIs) => {
-  for (const task of stageTasks(stageId)) {
+  for (let round = 0; round < 4; round++) for (const task of stageTasks(stageId, data().missionId)) {
+    // Varias vueltas: una tarea puede depender de otra que aparece después en la lista.
     if (isTaskDone(data(), task)) continue;
     const who = whoIs(task.role);
     if (task.kind === 'carry') {

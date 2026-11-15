@@ -114,6 +114,7 @@ export const mountScore = (box) => {
       facts.append(el('span', '', final.sandbox ? 'Sandbox: créditos ilimitados, física de verdad' : 'Ciencia: no viajó ningún instrumento científico'));
     }
     const planLine = el('p', 'score-plan', [final.plan ? `${SITES[final.plan.site]?.name ?? ''} · ${ORBITS[final.plan.orbit]?.name ?? ''}` : '', `Dificultad: ${final.difficulty ?? 'Normal'}`].filter(Boolean).join(' · '));
+    if (final.missionId === 'mars') planLine.textContent = `Viaje a Marte · Dificultad: ${final.difficulty ?? 'Normal'}`;
     if (final.sandbox) planLine.textContent = `Vuelo de prueba: ${PROFILES[final.plan?.profile ?? 'orbit']?.name ?? ''}`;
     if (final.place) planLine.textContent += ` · Puesto ${final.place} en la tabla de récords`;
     team.append(head, totalBox, objectives, facts, planLine, lists);

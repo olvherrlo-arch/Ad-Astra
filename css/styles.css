@@ -1368,6 +1368,7 @@ details.part-card.requested { border-color: var(--gold); box-shadow: 3px 3px 0 v
 .map-path { fill: none; stroke: rgba(244, 236, 217, 0.55); stroke-width: 2; stroke-dasharray: 4 6; }
 .map-earth { fill: #3fa597; stroke: #f4ecd9; stroke-width: 2; }
 .map-moon { fill: #e9dfc6; stroke: #f4ecd9; stroke-width: 2; }
+.map-moon.map-mars { fill: #d9694f; }
 .map-label { fill: #f4ecd9; font: 600 11px var(--font-ui); }
 .map-dot { stroke: #16224a; stroke-width: 2; }
 .map-dot.done { fill: #3fa597; }
@@ -1635,6 +1636,24 @@ details.part-card.requested { border-color: var(--gold); box-shadow: 3px 3px 0 v
 
 /* Tomas de cine entre fases (js/cinematic.js) */
 .cine-shot { position: fixed; inset: 0; z-index: 50; display: grid; place-items: end start; overflow: hidden; background: #0b1230; cursor: pointer; animation: cine-fade 0.5s ease-out both; }
+/* El rayo de Marte: rojo, destello azul y la onda que se abre (js/cinematic.js → playLightning). */
+.lightning-shot { position: fixed; inset: 0; z-index: 60; overflow: hidden; background: #1a0d14; pointer-events: none; animation: cine-fade 0.25s ease-out both; }
+.lightning-shot > * { position: absolute; inset: 0; opacity: 0; }
+.lightning-red { background: radial-gradient(circle at 50% 62%, #ff6b5b, #7a1420 70%); animation: bolt-red 3.6s linear both; }
+.lightning-bolt { left: 50%; right: auto; width: min(46vw, 46vh); height: 64vh; translate: -50% 0; animation: bolt-strike 3.6s linear both; }
+.lightning-bolt polygon { fill: #ff4a3d; stroke: #f4ecd9; stroke-width: 4; stroke-linejoin: round; }
+.lightning-blue { background: radial-gradient(circle at 50% 62%, #f4ecd9 0%, #7ea6ff 28%, #1f2d5c 90%); animation: bolt-blue 3.6s linear both; }
+.lightning-wave { inset: auto; left: 50%; top: 62%; width: 40px; height: 40px; margin: -20px; border: 6px solid #5cc2b4; border-radius: 50%; animation: bolt-wave 3.6s ease-out both; }
+@keyframes bolt-red { 0%, 6% { opacity: 0; } 8% { opacity: 1; } 12% { opacity: 0.3; } 16%, 30% { opacity: 1; } 38%, 100% { opacity: 0; } }
+@keyframes bolt-strike { 0%, 7% { opacity: 0; } 8%, 11% { opacity: 1; } 13% { opacity: 0.2; } 16%, 29% { opacity: 1; } 36%, 100% { opacity: 0; } }
+@keyframes bolt-blue { 0%, 34% { opacity: 0; } 40% { opacity: 1; } 58% { opacity: 0.85; } 100% { opacity: 0; } }
+@keyframes bolt-wave { 0%, 44% { opacity: 0; transform: scale(1); } 48% { opacity: 1; } 100% { opacity: 0; transform: scale(60); } }
+.lightning-shot.calm > * { animation-duration: 1.8s; }
+.lightning-shot.calm .lightning-red, .lightning-shot.calm .lightning-bolt { animation-name: calm-red; }
+.lightning-shot.calm .lightning-blue { animation-name: calm-blue; }
+.lightning-shot.calm .lightning-wave { animation: none; }
+@keyframes calm-red { 0% { opacity: 0; } 25%, 40% { opacity: 1; } 60%, 100% { opacity: 0; } }
+@keyframes calm-blue { 0%, 45% { opacity: 0; } 70% { opacity: 1; } 100% { opacity: 0; } }
 .cine-shot.leaving { animation: cine-out 0.4s ease-in both; }
 @keyframes cine-out { to { opacity: 0; } }
 .cine-shot::before, .cine-shot::after { content: ''; position: absolute; left: 0; right: 0; z-index: 2; height: 9vh; background: #0b1230; }

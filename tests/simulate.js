@@ -225,7 +225,7 @@ const run = async () => {
     afterPrologue.data.scene === 'select' && afterPrologue.data.campaign.prologueSeen === true);
   check('por ahora las tres misiones están desbloqueadas',
     ['moon', 'mars', 'exodus'].every((id) => afterPrologue.data.campaign.missions[id] === 'available'));
-  const unbuilt = await act(host, { type: 'mission:start', missionId: 'mars' });
+  const unbuilt = await act(host, { type: 'mission:start', missionId: 'exodus' });
   check(`una misión sin construir todavía no se puede iniciar ("${unbuilt.error}")`, Boolean(unbuilt.error) && room().state.data.scene === 'select');
   check('un invitado no puede iniciar la misión', Boolean((await act(p2, { type: 'mission:start', missionId: 'moon' })).error));
   const briefing = await act(host, { type: 'mission:start', missionId: 'moon' });

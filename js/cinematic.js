@@ -11,6 +11,30 @@ import { reducedMotion } from './settings.js';
 const SHOW_MS = 2_600;
 
 /**
+ * El rayo de la leyenda: primero ROJO, enseguida un destello AZUL, y una onda que se abre.
+ * Solo se muestra cuando el servidor ya dijo que el experimento se sincronizó (`flight.activated`).
+ * Con "reducir movimiento" no hay parpadeos: dos fundidos suaves. Al terminar llama a `then`.
+ * @param {() => void} [then]
+ */
+export const playLightning = (then = () => {}) => {
+  document.querySelector('.lightning-shot')?.remove();
+  const reduced = reducedMotion();
+  const shot = document.createElement('div');
+  shot.className = `lightning-shot${reduced ? ' calm' : ''}`;
+  shot.setAttribute('role', 'status');
+  shot.setAttribute('aria-label', 'Un rayo rojo cae sobre el Prisma, seguido de un destello azul');
+  shot.innerHTML = `
+    <div class="lightning-red"></div>
+    <svg class="lightning-bolt" viewBox="0 0 200 400" preserveAspectRatio="xMidYMin meet" aria-hidden="true">
+      <polygon points="118,0 62,150 100,156 44,290 84,296 60,400 150,236 108,230 162,96 124,90 150,0" />
+    </svg>
+    <div class="lightning-blue"></div>
+    <div class="lightning-wave"></div>`;
+  document.body.append(shot);
+  setTimeout(() => { shot.remove(); then(); }, reduced ? 1_800 : 3_600);
+};
+
+/**
  * @param {{ art: string, kicker?: string, title: string, text?: string, camera?: string, tone?: 'good' | 'bad' }} shot
  */
 export const playCinematic = ({ art, kicker = '', title, text = '', camera = 'in', tone }) => {

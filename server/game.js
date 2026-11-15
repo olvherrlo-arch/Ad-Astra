@@ -48,7 +48,7 @@ import { applyWorldAction, isWorldAction } from './world.js';
 
 const LOG_LIMIT = 30;
 /** Etapas de la misión que son parte del viaje (las maneja server/flight.js). */
-const FLIGHT_STAGES = ['flight', 'surface', 'return'];
+const FLIGHT_STAGES = ['flight', 'surface', 'return', 'arrival', 'storm', 'bloom'];
 
 /** Marca la misión como completada y abre la siguiente de la campaña. */
 const completeMission = (campaign, missionId) => {
@@ -377,6 +377,12 @@ const applyRules = (state, action, actor) => {
 
       // ---------- Vuelo (server/flight.js) ----------
       if (isFlightAction(action)) {
+        // En Marte, cada parte de la superficie se cierra recién con las tareas de la etapa hechas.
+        const leg = data.flight ? mission.flightPlan?.[data.flight.legIndex] : null;
+        if (action.type === 'flight:proceed' && leg?.gate) {
+          const missing = missingTasks(data, stageId, actor.heldRoles);
+          if (missing.length > 0) return { error: `Falta una tarea de ${roleName(missing[0].role)}: ${missing[0].title.toLowerCase()}${missing.length > 1 ? ` (y ${missing.length - 1} más)` : ''}.` };
+        }
         const flown = applyFlightAction(flightContext(data), action, actor);
         if (flown.error) return { error: flown.error };
         const { next, logs } = afterFlight(data, flown);

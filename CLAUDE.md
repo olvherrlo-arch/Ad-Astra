@@ -241,3 +241,18 @@ Universe, 4 arcas John/Ringo/George/Paul: no renombrar) → 5 integración. No e
   `mission:retry` vuelve al hangar (también en pleno vuelo = abortar). Pantalla js/sandboxview.js (pestaña "Vuelo de
   prueba" del tablero). No guarda récords ni toca campañas. Las tareas ahora son por misión: `task.mission`
   (sin ese campo = Luna) y `stageTasks(stageId, missionId)`. Pruebas: tests/sandbox.js (31).
+- Hito 3 HECHO: MISIÓN 2 "Life on Mars". Etapas (js/missions.js MARS_STAGES): briefing, planning, market, build,
+  validation, flight, arrival, surface, storm, bloom, debrief. `marsFlightPlan` (js/flightplans.js): ascent, tmi
+  (Hohmann Tierra→Marte real), mcc, moi (frenado real a 300 km), entry (sin Δv, escudo), descent (700 m/s, cuerpo
+  `mars`), y tres tramos caminando en el mapa `mars` (js/worldmaps.js): experiment (etapa surface), storm, bloom.
+  Los tramos con `gate: true` solo se cierran (`flight:proceed`, Vuelo) con las tareas de la etapa hechas (lo revisa
+  server/game.js). Cerrar `storm` = sincronizar con el rayo: `flight.activated` + `flight.sync`; el último tramo lleva
+  `endText` (éxito). El cohete lunar NO sirve (gasta el módulo antes de aterrizar): `EXAMPLE_BLUEPRINTS.mars`.
+  Tareas: las de la estación se clonan de la Luna con otro texto (`MARS_PREP`, ids `mars.<id lunar>`); las de Marte
+  son `mars.surface|storm|bloom.*`. Cliente: js/world.js (pasos de Vuelo en el mástil y el módulo, `drawStorm`,
+  viento que frena, fondo que se repinta con brotes tras el rayo), js/worldart.js (`paintMars`, pintores mast/rig/
+  outcrop; el aparato dibuja solo lo que ya se hizo), js/cinematic.js `playLightning` (rojo → azul → onda; nunca
+  antes de `activated`), ilustraciones mars/storm/bloom en js/art.js, informe en BRIEFINGS.mars. Pruebas:
+  tests/mars.js (38: 4 jugadores, 1 jugador, fallo y reintento, balance 20/20 con cuidado).
+  tests/simulate.js usa `exodus` como "misión sin construir": cambiarlo al construir la misión 3.
+

@@ -22,7 +22,7 @@ import { BUILD_STAGES } from './assembly.js';
 import { mountBuilder } from './builder.js';
 import { drawAstronaut, FRAME_COUNT, IDLE_FRAME, WALK_FPS } from './character.js';
 import { mountChat } from './chat.js';
-import { playCinematic } from './cinematic.js';
+import { playCinematic, playLightning } from './cinematic.js';
 import { endGame, isHost, leaveRoom, on, sendAction, sendMove, session } from './connection.js';
 import { mountFlight } from './flightview.js';
 import { mountPlan } from './planview.js';
@@ -59,12 +59,16 @@ const ITEM_NAMES = { chip: 'la ficha de presupuesto', sample: 'la muestra', crat
 
 /** Tomas de cine al cambiar de etapa (js/cinematic.js). Solo se muestran; no cambian nada del juego. */
 const STAGE_SHOTS = {
-  flight: (data) => ({ art: 'rocket', camera: 'up', kicker: 'Etapa Vuelo', title: '¡Despegue!', text: data.missionId === 'sandbox' ? 'A ver cómo vuela tu diseño.' : 'Todos a sus puestos. Rumbo a la Luna.' }),
-  surface: () => ({ art: 'moon', camera: 'in', kicker: 'Etapa Superficie', title: 'El lado oculto', text: 'Hora de bajar y encontrar el Prisma.' }),
+  flight: (data) => ({ art: 'rocket', camera: 'up', kicker: 'Etapa Vuelo', title: '¡Despegue!', text: data.missionId === 'sandbox' ? 'A ver cómo vuela tu diseño.' : data.missionId === 'mars' ? 'Todos a sus puestos. Ocho meses y medio hasta Marte.' : 'Todos a sus puestos. Rumbo a la Luna.' }),
+  arrival: () => ({ art: 'mars', camera: 'in', kicker: 'Etapa Llegada', title: 'Marte a la vista', text: 'Frenar, atravesar su aire fino y aterrizar.' }),
+  surface: (data) => (data.missionId === 'mars'
+    ? { art: 'mars', camera: 'out', kicker: 'Etapa Superficie', title: 'Suelo marciano', text: 'Hay que armar el experimento antes de que llegue la tormenta.' }
+    : { art: 'moon', camera: 'in', kicker: 'Etapa Superficie', title: 'El lado oculto', text: 'Hora de bajar y encontrar el Prisma.' }),
+  storm: () => ({ art: 'storm', camera: 'left', kicker: 'Etapa Tormenta', title: 'Llega la tormenta', text: 'Sostengan el experimento. El rayo está cerca.', tone: 'bad' }),
   return: () => ({ art: 'earth', camera: 'out', kicker: 'Etapa Regreso', title: 'Rumbo a casa', text: 'Queda volver con la nave entera.' }),
   debrief: (data) => (data.flight?.result?.ok
-    ? { art: data.missionId === 'sandbox' ? 'earth' : 'bolt', camera: 'in', kicker: 'Resultado', title: data.missionId === 'sandbox' ? 'Prueba superada' : 'Misión cumplida', text: data.missionId === 'sandbox' ? data.flight.result.text : 'El Prisma está en la Tierra. La leyenda era cierta.', tone: 'good' }
-    : { art: 'moon', camera: 'out', kicker: 'Resultado', title: 'Misión fallida', text: data.flight?.result?.text ?? 'La nave no pudo completar el viaje.', tone: 'bad' }),
+    ? { art: data.missionId === 'sandbox' ? 'earth' : data.missionId === 'mars' ? 'bloom' : 'bolt', camera: 'in', kicker: 'Resultado', title: data.missionId === 'sandbox' ? 'Prueba superada' : 'Misión cumplida', text: data.missionId === 'moon' ? 'El Prisma está en la Tierra. La leyenda era cierta.' : data.flight.result.text, tone: 'good' }
+    : { art: data.missionId === 'mars' ? 'mars' : 'moon', camera: 'out', kicker: 'Resultado', title: 'Misión fallida', text: data.flight?.result?.text ?? 'La nave no pudo completar el viaje.', tone: 'bad' }),
 };
 
 const WORLD_HTML = `
@@ -138,6 +142,7 @@ export const mountWorld = (container) => {
   let scanAt = 0;
   let pulses = []; //          anillos que se abren al escanear
   let lastStage = null;
+  let paintedBloom = false; // el fondo de Marte ya está pintado con los brotes
   let toastTimer = 0;
   let unmountTool = null;
   let openTools = [];
@@ -208,7 +213,7 @@ export const mountWorld = (container) => {
   // ============================================================
   const runTask = async (task) => {
     const result = task.kind === 'burnSim'
-      ? await whileBusy(() => playBurn({ title: 'Simulador: transferencia a la Luna', how: task.how, target: 3_130, sim: true }))
+      ? await whileBusy(() => playBurn(task.mission === 'mars' ? { title: 'Simulador: inyección hacia Marte', how: task.how, target: 3_610, sim: true } : { title: 'Simulador: transferencia a la Luna', how: task.how, target: 3_130, sim: true }))
       : await whileBusy(() => playMinigame(task.kind, { title: task.title, how: task.how, game: task.game }));
     // `quality`: la precisión que midió el minijuego (0 a 1); el servidor la usa para el puntaje.
     const quality = Number.isFinite(result.quality) ? result.quality : Number.isFinite(result.aim) ? result.aim : undefined;
@@ -219,7 +224,10 @@ export const mountWorld = (container) => {
     const remaining = Math.max(1, Math.round(g.leg.dv - g.flight.progress));
     const report = (fraction, thrust) => { liveAct = `burn:${Math.min(1.2, fraction).toFixed(2)}:${thrust ? 1 : 0}`; };
     if (g.leg.id === 'descent') {
-      const result = await whileBusy(() => playLander({ title: 'Alunizaje en el lado oculto', budget: remaining, onProgress: report }));
+      const onMars = g.leg.body === 'mars';
+      const result = await whileBusy(() => playLander(onMars
+        ? { title: 'Aterrizaje en Marte', budget: remaining, onProgress: report, gravity: 8.5, how: 'Marte tira más que la Luna: gira y empuja para frenar antes. Pósate despacio y derecho sobre la marca dorada.' }
+        : { title: 'Alunizaje en el lado oculto', budget: remaining, onProgress: report }));
       if (result.dv) sendAction({ type: 'flight:burn', dv: result.dv, aim: result.aim, touchdown: result.touchdown });
       return;
     }
@@ -282,8 +290,8 @@ export const mountWorld = (container) => {
           add(flight ? 'Ver el vuelo de prueba' : 'Elegir el vuelo de prueba', () => openPanel(['testflight', 'board']));
           break;
         }
-        add(stageId === 'debrief' ? 'Ver la evaluación de la misión' : 'Ver el tablero de misión', () => openPanel(stageId === 'debrief' ? ['score', 'flight', 'board'] : ['board', 'plan']));
-        if (stageId !== 'debrief' && !flight) add('Elegir lugar de alunizaje y órbita', () => openPanel(['plan', 'board']));
+        add(stageId === 'debrief' ? 'Ver la evaluación de la misión' : 'Ver el tablero de misión', () => openPanel(stageId === 'debrief' ? ['score', 'flight', 'board'] : g.mission.id === 'moon' ? ['board', 'plan'] : ['board']));
+        if (stageId !== 'debrief' && !flight && g.mission.id === 'moon') add('Elegir lugar de alunizaje y órbita', () => openPanel(['plan', 'board']));
         break;
       case 'lever': {
         if (stageId === 'debrief') {
@@ -318,10 +326,10 @@ export const mountWorld = (container) => {
       case 'helm': {
         if (!inFlightStage) break;
         const reason = !g.may('pilot') ? 'El timón es de Vuelo.' : flight.phase === 'emergency' ? 'Primero hay que resolver la emergencia.' : null;
-        if (leg.dv > 0) add(leg.id === 'descent' ? 'Tomar los mandos: alunizar' : `Tomar los mandos: ${leg.name.toLowerCase()}`, () => pilotBurn(g), { blocked: reason });
+        if (leg.dv > 0) add(leg.id === 'descent' ? (leg.body === 'mars' ? 'Tomar los mandos: aterrizar en Marte' : 'Tomar los mandos: alunizar') : `Tomar los mandos: ${leg.name.toLowerCase()}`, () => pilotBurn(g), { blocked: reason });
         else {
-          add('Tomar los mandos: reentrada', async () => {
-            const result = await whileBusy(() => playMinigame('dial', { title: 'Reentrada', how: 'Mantén el ángulo de entrada en la zona verde: muy empinado quema la cápsula, muy plano la hace rebotar.', game: { speed: 1.2, arc: 0.32 } }));
+          add(leg.id === 'entry' ? 'Tomar los mandos: entrada en la atmósfera' : 'Tomar los mandos: reentrada', async () => {
+            const result = await whileBusy(() => playMinigame('dial', { title: leg.id === 'entry' ? 'Entrada en Marte' : 'Reentrada', how: 'Mantén el ángulo de entrada en la zona verde: muy empinado quema la cápsula, muy plano la hace rebotar.', game: { speed: 1.2, arc: 0.32 } }));
             if (result.ok) sendAction({ type: 'flight:proceed', quality: result.quality });
           }, { blocked: reason });
         }
@@ -361,7 +369,7 @@ export const mountWorld = (container) => {
 
     if (flight && flight.phase !== 'over') {
       // ---------- Energía: el tablero de la nave o, en la Luna, el módulo ----------
-      if ((station.id === 'breaker' || (mapId === 'moon' && station.id === 'hatch')) && g.may('engineer')) {
+      if ((station.id === 'breaker' || (map.outdoor && station.id === 'hatch')) && g.may('engineer')) {
         const saving = flight.mode === 'saving';
         add(saving ? 'Volver a energía normal' : 'Pasar a modo ahorro (apaga los instrumentos)', () => { sounds.pick(); sendAction({ type: 'flight:power', mode: saving ? 'normal' : 'saving' }); });
       }
@@ -370,6 +378,19 @@ export const mountWorld = (container) => {
         const absent = notAboard(g, station);
         const reason = !flight.prism ? 'Todavía falta el Prisma: sin él la misión no se cumple.' : absent.length ? `Faltan a bordo: ${absent.join(', ')}.` : null;
         add('Todos a bordo: despegar de la Luna', () => sendAction({ type: 'flight:proceed' }), { hold: true, blocked: reason });
+      }
+      // ---------- En Marte: Vuelo da el paso a la tormenta, sincroniza el rayo y cierra la misión ----------
+      if (mapId === 'mars' && leg?.gate && flight.phase === 'ready' && g.may('pilot')) {
+        const missing = missingTasks(data, stageId, g.held);
+        const reason = missing.length ? `Falta: ${roleName(missing[0].role)} · ${missing[0].title.toLowerCase()}${missing.length > 1 ? ` (y ${missing.length - 1} más)` : ''}.` : null;
+        if (leg.id === 'experiment' && station.id === 'mast') add('Dar la alerta: llega la tormenta', () => { sounds.launch(); sendAction({ type: 'flight:proceed' }); }, { hold: true, blocked: reason });
+        if (leg.id === 'storm' && station.id === 'mast') {
+          add('Sincronizar el experimento con el rayo', async () => {
+            const result = await whileBusy(() => playMinigame('timing', { title: 'El rayo', how: 'El rayo cae cuando la marca cruza la ventana verde: dispara el experimento en ese instante. Tres aciertos.' }));
+            if (result.ok) sendAction({ type: 'flight:proceed', quality: result.quality });
+          }, { blocked: reason });
+        }
+        if (leg.id === 'bloom' && station.id === 'hatch') add('Cerrar la misión: todo quedó registrado', () => { sounds.good(); sendAction({ type: 'flight:proceed' }); }, { hold: true, blocked: reason });
       }
       // ---------- Emergencias: el repuesto, la reparación y la salida alternativa ----------
       const emergency = flight.emergency;
@@ -392,7 +413,7 @@ export const mountWorld = (container) => {
             }
           }
         }
-        if (other && station.id === (mapId === 'moon' ? 'hatch' : 'helm')) {
+        if (other && station.id === (map.outdoor ? 'hatch' : 'helm')) {
           for (const role of other.needs) {
             if (g.may(role) && !voted(other.id, role)) add(`${other.label} (sin reparar)`, () => sendAction({ type: 'flight:resolve', option: other.id, role }), { hold: true });
           }
@@ -435,7 +456,7 @@ export const mountWorld = (container) => {
     if (mapId === 'station') {
       taskLines();
       // La decisión del plan (lugar y órbita): no frena la etapa, pero conviene tomarla antes de armar.
-      if (['planning', 'market', 'build'].includes(stageId)) {
+      if (g.mission.id === 'moon' && ['planning', 'market', 'build'].includes(stageId)) {
         const decided = Boolean(data.plan?.decided);
         const role = g.held.includes('pilot') || !g.held.includes('scientist') ? 'pilot' : 'scientist';
         push(role, 'Decidir el lugar de alunizaje y la órbita (tablero de misión)', 'board', { done: decided, tag: 'decisión' });
@@ -462,12 +483,21 @@ export const mountWorld = (container) => {
         push('merchant', `Emergencia: llevar el repuesto a la avería (${credits(repair.cost)})`, voted('merchant') ? null : Object.values(data.carrying ?? {}).some((item) => item.id === 'spare') ? fault : SPARE_STATION[mapId]?.(emergency.kind), { done: voted('merchant'), alert: true });
         push('engineer', `Emergencia: reparar · ${emergency.title.toLowerCase()}`, fault, { done: voted('engineer'), alert: true });
       }
-      if (other) for (const role of other.needs) push(role, `O bien: ${other.label.toLowerCase()}`, mapId === 'moon' ? 'hatch' : 'helm', { tag: 'alternativa' });
+      if (other) for (const role of other.needs) push(role, `O bien: ${other.label.toLowerCase()}`, map.outdoor ? 'hatch' : 'helm', { tag: 'alternativa' });
       return list;
     }
     if (mapId === 'moon') {
       taskLines();
       if (flight.prism) push('pilot', 'Todos al módulo lunar: despegar', 'hatch', { step: true });
+      return list;
+    }
+    if (mapId === 'mars') {
+      taskLines();
+      if (missingTasks(data, stageId, g.held).length === 0) {
+        if (leg?.id === 'experiment') push('pilot', 'Todo listo: dar la alerta de tormenta desde el mástil', 'mast', { step: true });
+        else if (leg?.id === 'storm') push('pilot', 'Sincronizar el experimento con el rayo (mástil)', 'mast', { step: true });
+        else push('pilot', 'Cerrar la misión en el módulo de aterrizaje', 'hatch', { step: true });
+      }
       return list;
     }
     // A bordo
@@ -654,7 +684,8 @@ export const mountWorld = (container) => {
     background.height = Math.round(map.height * view.res);
     const g = background.getContext('2d');
     g.setTransform(view.res, 0, 0, view.res, 0, 0);
-    paintMap(g, map);
+    paintedBloom = Boolean(session.state?.data?.flight?.activated);
+    paintMap(g, map, { bloom: paintedBloom });
   };
   const resize = () => {
     view.dpr = canvasDpr(2);
@@ -683,7 +714,8 @@ export const mountWorld = (container) => {
   // ============================================================
   const speedNow = (g) => {
     const carried = g?.mine;
-    return WORLD_SPEED * (session.room.settings.playerSpeed ?? 1) * getSettings().walkSpeed * (carried?.item === 'prism' ? PRISM_SPEED : carried ? CARRY_SPEED : 1);
+    const wind = g?.leg?.id === 'storm' && mapId === 'mars' ? 0.72 : 1; // contra el viento se camina más lento
+    return WORLD_SPEED * wind * (session.room.settings.playerSpeed ?? 1) * getSettings().walkSpeed * (carried?.item === 'prism' ? PRISM_SPEED : carried ? CARRY_SPEED : 1);
   };
 
   const updateMe = (dt, g) => {
@@ -973,8 +1005,13 @@ export const mountWorld = (container) => {
   // ============================================================
   const stationState = (station, g) => {
     const { data, flight, stageId } = g;
-    const progress = (id) => taskProgress(data, getTask(id));
+    // Marte usa los mismos puestos de la estación con sus propias tareas (`mars.` adelante).
+    const progress = (id) => { const task = getTask(data.missionId === 'mars' && !id.startsWith('mars.') ? `mars.${id}` : id); return task ? taskProgress(data, task) : 0; };
+    const done = (id) => Boolean(getTask(id)) && isTaskDone(data, getTask(id));
     switch (station.id) {
+      case 'rig': return { materials: progress('mars.surface.materials'), built: done('mars.surface.rig'), cabled: done('mars.surface.cables'), prism: done('mars.surface.prism'), shields: progress('mars.storm.shields'), active: Boolean(flight?.activated) };
+      case 'mast': return { storm: g.leg?.id === 'storm' };
+      case 'outcrop': return { bloom: Boolean(flight?.activated) };
       case 'board': {
         const list = objectives(g);
         return {
@@ -1234,6 +1271,33 @@ export const mountWorld = (container) => {
     }
     for (const actor of actors.values()) drawActorLabels(actor, g, now);
     drawGuide(g, time);
+    drawStorm(g, time);
+  };
+
+  /** La tormenta de Marte: polvo que cruza la pantalla, poca luz y relámpagos lejanos. Solo se ve en su tramo. */
+  const drawStorm = (g, time) => {
+    if (mapId !== 'mars' || g.leg?.id !== 'storm') return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const w = canvas.width, h = canvas.height;
+    ctx.fillStyle = 'rgba(122, 47, 36, 0.34)';
+    ctx.fillRect(0, 0, w, h);
+    if (reducedEffects()) return;
+    ctx.strokeStyle = 'rgba(244, 236, 217, 0.3)';
+    ctx.lineWidth = 2 * view.dpr;
+    for (let i = 0; i < 26; i++) {
+      const y = ((i * 97) % 100) / 100 * h + Math.sin(time * 2 + i) * 12;
+      const x = (((time * (420 + (i % 5) * 110)) + i * 173) % (w + 300)) - 300;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + 120 + (i % 4) * 50, y + 10);
+      ctx.stroke();
+    }
+    // Un relámpago lejano cada tanto (rojizo): avisa que el rayo se acerca.
+    const beat = (time % 4.2) / 4.2;
+    if (beat > 0.94) {
+      ctx.fillStyle = `rgba(255, 107, 91, ${(1 - (beat - 0.94) / 0.06) * 0.28})`;
+      ctx.fillRect(0, 0, w, h);
+    }
   };
 
   // ============================================================
@@ -1276,6 +1340,13 @@ export const mountWorld = (container) => {
     const wantedMap = mapIdFor(g.data);
     if (wantedMap !== mapId) enterMap(wantedMap, true);
     if (lastStage !== null && lastStage !== g.stageId && STAGE_SHOTS[g.stageId]) playCinematic(STAGE_SHOTS[g.stageId](g.data));
+    // El rayo: rojo, destello azul y la onda. Recién después se ve el Marte que cambió.
+    if (Boolean(g.flight?.activated) !== paintedBloom && mapId === 'mars') {
+      if (lastStage !== null && g.flight?.activated) {
+        sounds.launch();
+        playLightning(() => { paintBackground(); playCinematic({ art: 'bloom', camera: 'out', kicker: 'La leyenda de Aztlán', title: 'El Prisma despertó', text: 'Rayo rojo, destello azul. Donde había polvo, asoma el primer verde.', tone: 'good' }); });
+      } else paintBackground();
+    }
     // Al llegar a la Evaluación, el informe del vuelo se abre solo una vez.
     if (g.stageId !== 'debrief') seenResult = false; // al volver a intentar, el resultado nuevo se abre otra vez
     if (g.stageId === 'debrief' && !seenResult) {

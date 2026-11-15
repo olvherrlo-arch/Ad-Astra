@@ -201,10 +201,101 @@ const paintMoon = (g, map) => {
   paperGrain(g, rng, 0, horizon, map.width, map.height - horizon, 7000);
 };
 
+const MARS_GROUND = '#d98a63';
+const MARS_SKY = '#f0c9a0';
+const SPROUT = '#5fae5a';
+
+/** Un brote: tallo y dos hojas. */
+const sprout = (g, x, y, size) => {
+  g.strokeStyle = INK.navy;
+  g.lineWidth = 1.4;
+  g.beginPath();
+  g.moveTo(x, y);
+  g.lineTo(x, y - size);
+  g.stroke();
+  for (const side of [-1, 1]) {
+    g.beginPath();
+    g.ellipse(x + side * size * 0.42, y - size, size * 0.42, size * 0.2, side * -0.5, 0, Math.PI * 2);
+    g.fillStyle = SPROUT;
+    g.fill();
+    g.stroke();
+  }
+};
+
+/**
+ * La llanura de Marte: cielo color caramelo, sierras a lo lejos y suelo rojo.
+ * Con `bloom` (después del rayo) el cielo se aclara hacia el azul y aparecen manchas verdes y brotes.
+ */
+const paintMars = (g, map, bloom) => {
+  const rng = createRng(91);
+  const horizon = 130;
+  g.fillStyle = bloom ? '#cfe0e6' : MARS_SKY;
+  g.fillRect(0, 0, map.width, map.height);
+  halftoneGradient(g, () => { g.beginPath(); g.rect(0, 0, map.width, horizon + 20); }, bloom ? '#7ea6ff' : INK.coral,
+    (px, py) => 0.34 * (1 - py / (horizon + 20)), { x: 0, y: 0, w: map.width, h: horizon + 20 }, 6);
+  // El Sol, chico y pálido (Marte está más lejos).
+  g.beginPath();
+  g.arc(1500, 52, 15, 0, Math.PI * 2);
+  g.fillStyle = INK.paper;
+  g.fill();
+  // Sierras lejanas, en dos planos.
+  for (const [base, height, alpha, step] of [[horizon + 6, 70, 0.3, 150], [horizon + 14, 44, 0.5, 96]]) {
+    g.beginPath();
+    g.moveTo(0, base);
+    for (let x = 0; x <= map.width; x += step) g.lineTo(x + step / 2, base - height * (0.35 + rng() * 0.65));
+    g.lineTo(map.width, base);
+    g.closePath();
+    g.fillStyle = withAlpha('#9c4a36', alpha);
+    g.fill();
+  }
+  g.fillStyle = MARS_GROUND;
+  g.beginPath();
+  g.moveTo(0, horizon + 18);
+  for (let x = 0; x <= map.width; x += 60) g.lineTo(x, horizon + Math.sin(x * 0.009) * 9 + Math.sin(x * 0.05) * 4);
+  g.lineTo(map.width, map.height);
+  g.lineTo(0, map.height);
+  g.closePath();
+  g.fill();
+  halftoneGradient(g, () => { g.beginPath(); g.rect(0, horizon, map.width, map.height - horizon); }, '#7a2f24',
+    (px, py) => 0.05 + 0.16 * (py / map.height) * (0.6 + 0.4 * Math.sin(px * 0.005)), { x: 0, y: horizon, w: map.width, h: map.height - horizon }, 10);
+  // Dunas: arcos claros con sombra.
+  for (let i = 0; i < 26; i++) {
+    const x = 60 + rng() * (map.width - 120), y = horizon + 70 + rng() * (map.height - horizon - 100), r = 40 + rng() * 90;
+    g.beginPath();
+    g.ellipse(x, y, r, r * 0.2, 0, Math.PI, Math.PI * 2);
+    g.lineWidth = 2;
+    g.strokeStyle = withAlpha(INK.paper, 0.55);
+    g.stroke();
+    inkFill(g, () => { g.beginPath(); g.ellipse(x + 8, y + 4, r, r * 0.16, 0, 0, Math.PI); }, halftone(g, '#7a2f24', 0.3, 4));
+  }
+  // Piedras sueltas.
+  g.fillStyle = withAlpha('#5b241c', 0.4);
+  for (let i = 0; i < 220; i++) g.fillRect(rng() * map.width, horizon + 30 + rng() * (map.height - horizon - 30), 2 + rng() * 4, 1.5 + rng() * 2.5);
+  if (bloom) {
+    // La vida empieza cerca del aparato y se va abriendo.
+    const cx = 1025, cy = 540;
+    for (let i = 0; i < 70; i++) {
+      const angle = rng() * Math.PI * 2, far = 60 + rng() * rng() * 900;
+      const x = cx + Math.cos(angle) * far, y = cy + Math.sin(angle) * far * 0.6;
+      if (x < 50 || x > map.width - 50 || y < horizon + 40 || y > map.height - 30) continue;
+      const r = 26 + rng() * 60;
+      const patch = () => { g.beginPath(); g.ellipse(x, y, r, r * 0.38, 0, 0, Math.PI * 2); };
+      g.save();
+      g.globalAlpha = 0.75;
+      paperFill(g, patch, '#bfe3b4');
+      g.restore();
+      inkFill(g, patch, halftone(g, INK.teal, 0.5 - Math.min(0.3, far / 2400), 4));
+      for (let n = 0; n < 3; n++) sprout(g, x + (rng() - 0.5) * r * 1.4, y + (rng() - 0.5) * r * 0.4, 7 + rng() * 7);
+    }
+  }
+  paperGrain(g, rng, 0, horizon, map.width, map.height - horizon, 7000);
+};
+
 /** Pinta el fondo fijo de un mapa (en unidades de mundo; quien llama ya puso la escala). */
-export const paintMap = (g, map) => {
+export const paintMap = (g, map, { bloom = false } = {}) => {
   g.lineJoin = 'round';
-  if (map.outdoor) paintMoon(g, map);
+  if (map.id === 'mars') paintMars(g, map, bloom);
+  else if (map.outdoor) paintMoon(g, map);
   else paintIndoor(g, map);
 };
 
@@ -752,6 +843,165 @@ const PAINTERS = {
     inkFill(ctx, unit, INK.teal);
     keyLine(ctx, unit, 1.8);
     lights(ctx, t.x + 18, t.y - 8, 4, time, state.broken ? [INK.coral] : [INK.teal, INK.gold]);
+  },
+  /** Mástil meteorológico: un poste con copas que giran (más rápido en la tormenta). */
+  mast: (ctx, s, { time, state }) => {
+    const cx = s.x + s.w / 2, base = s.y + s.h, top = base - s.height;
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.beginPath();
+    ctx.ellipse(cx + 10, base - 2, 30, 7, 0, 0, Math.PI * 2);
+    ctx.fillStyle = halftone(ctx, INK.navy, 0.4, 3);
+    ctx.fill();
+    ctx.restore();
+    const foot = () => polyPath(ctx, [[cx - 20, base], [cx + 20, base], [cx + 5, base - 16], [cx - 5, base - 16]]);
+    paperFill(ctx, foot);
+    inkFill(ctx, foot, '#5b74c9');
+    keyLine(ctx, foot, 1.8);
+    ctx.strokeStyle = INK.navy;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(cx, base - 14);
+    ctx.lineTo(cx, top + 12);
+    ctx.stroke();
+    const spin = time * (state.storm ? 14 : 2.4);
+    ctx.lineWidth = 2.4;
+    for (let i = 0; i < 3; i++) {
+      const reach = Math.cos(spin + (i * Math.PI * 2) / 3) * 22;
+      ctx.beginPath();
+      ctx.moveTo(cx, top + 12);
+      ctx.lineTo(cx + reach, top + 12);
+      ctx.stroke();
+      const cup = circlePath(ctx, cx + reach, top + 12, 6);
+      paperFill(ctx, cup);
+      inkFill(ctx, cup, state.storm ? INK.coral : INK.gold);
+      keyLine(ctx, cup, 1.5);
+    }
+    // Veleta
+    const vane = () => polyPath(ctx, [[cx, top + 30], [cx + (state.storm ? -34 : 26), top + 24], [cx + (state.storm ? -34 : 26), top + 36]]);
+    paperFill(ctx, vane);
+    inkFill(ctx, vane, INK.teal);
+    keyLine(ctx, vane, 1.5);
+  },
+  /** Formación rocosa en capas; después del rayo le salen brotes. */
+  outcrop: (ctx, s, { state }) => {
+    const base = s.y + s.h, top = base - s.height;
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.beginPath();
+    ctx.ellipse(s.x + s.w / 2 + 18, base - 2, s.w / 2 + 24, 11, 0, 0, Math.PI * 2);
+    ctx.fillStyle = halftone(ctx, INK.navy, 0.45, 3);
+    ctx.fill();
+    ctx.restore();
+    const shape = () => polyPath(ctx, [[s.x, base], [s.x + s.w * 0.08, top + s.height * 0.5], [s.x + s.w * 0.3, top + s.height * 0.12], [s.x + s.w * 0.55, top], [s.x + s.w * 0.8, top + s.height * 0.3], [s.x + s.w, base]]);
+    paperFill(ctx, shape, '#c2664a');
+    inkFill(ctx, () => polyPath(ctx, [[s.x + s.w * 0.55, top], [s.x + s.w * 0.8, top + s.height * 0.3], [s.x + s.w, base], [s.x + s.w * 0.5, base]]), halftone(ctx, '#5b241c', 0.55, 2.8));
+    ctx.save();
+    shape();
+    ctx.clip();
+    ctx.strokeStyle = withAlpha(INK.paper, 0.6);
+    ctx.lineWidth = 2;
+    for (let i = 1; i < 5; i++) {
+      ctx.beginPath();
+      ctx.moveTo(s.x, top + (s.height * i) / 5 + 6);
+      ctx.quadraticCurveTo(s.x + s.w / 2, top + (s.height * i) / 5 - 8, s.x + s.w, top + (s.height * i) / 5 + 4);
+      ctx.stroke();
+    }
+    ctx.restore();
+    keyLine(ctx, shape, 2.2);
+    if (state.bloom) for (const [dx, dy, size] of [[0.2, 0.3, 11], [0.5, 0.02, 14], [0.72, 0.28, 10], [0.9, 0.86, 9], [0.1, 0.9, 10]]) sprout(ctx, s.x + s.w * dx, top + s.height * dy, size);
+  },
+  /**
+   * El aparato del experimento. Se dibuja lo que de verdad está hecho: la marca en el suelo, la torre
+   * armada, los cables, el Prisma en su brazo, los escudos, y el brillo cuando el rayo lo despertó.
+   */
+  rig: (ctx, s, { time, state }) => {
+    const cx = s.x + s.w / 2, base = s.y + s.h, top = base - s.height;
+    const plate = rectPath(ctx, s.x, s.y, s.w, s.h, 6);
+    if (!state.built) {
+      ctx.save();
+      ctx.setLineDash([8, 6]);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = withAlpha(INK.navy, 0.7);
+      plate();
+      ctx.stroke();
+      ctx.restore();
+      for (let i = 0; i < (state.materials ?? 0); i++) {
+        const crate = rectPath(ctx, s.x + 14 + i * 40, s.y + 6, 32, 26, 3);
+        paperFill(ctx, crate);
+        inkFill(ctx, crate, INK.gold);
+        keyLine(ctx, crate, 1.6);
+      }
+      return;
+    }
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.beginPath();
+    ctx.ellipse(cx + 10, base - 2, s.w / 2 + 14, 10, 0, 0, Math.PI * 2);
+    ctx.fillStyle = halftone(ctx, INK.navy, 0.42, 3);
+    ctx.fill();
+    ctx.restore();
+    paperFill(ctx, plate);
+    inkFill(ctx, plate, halftone(ctx, INK.navy, 0.35, 3));
+    keyLine(ctx, plate, 2);
+    // Torre de tres patas y pararrayos.
+    ctx.strokeStyle = INK.navy;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    for (const dx of [-46, 0, 46]) {
+      ctx.beginPath();
+      ctx.moveTo(cx + dx, base - 8);
+      ctx.lineTo(cx, top + 34);
+      ctx.stroke();
+    }
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(cx, top + 34);
+    ctx.lineTo(cx, top - 6);
+    ctx.stroke();
+    const tip = circlePath(ctx, cx, top - 8, 5);
+    paperFill(ctx, tip);
+    inkFill(ctx, tip, INK.coral);
+    keyLine(ctx, tip, 1.5);
+    // Condensador (caja a un lado) y cables.
+    const unit = rectPath(ctx, s.x + 6, base - 40, 34, 28, 3);
+    paperFill(ctx, unit);
+    inkFill(ctx, unit, INK.coral);
+    keyLine(ctx, unit, 1.8);
+    lights(ctx, s.x + 14, base - 26, 3, time, state.active ? [INK.teal] : state.cabled ? [INK.gold, INK.teal] : [withAlpha(INK.navy, 0.5)]);
+    if (state.cabled) {
+      ctx.strokeStyle = INK.navy;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(s.x + 40, base - 24);
+      ctx.quadraticCurveTo(cx, base + 6, s.x + s.w + 30, base - 14);
+      ctx.stroke();
+    }
+    // Escudos de emergencia (durante la tormenta).
+    for (let i = 0; i < (state.shields ?? 0); i++) {
+      const shield = () => polyPath(ctx, [[s.x + s.w - 44 + i * 26, base], [s.x + s.w - 38 + i * 26, base - 46], [s.x + s.w - 14 + i * 26, base - 46], [s.x + s.w - 8 + i * 26, base]]);
+      paperFill(ctx, shield);
+      inkFill(ctx, shield, halftone(ctx, INK.teal, 0.7, 3));
+      keyLine(ctx, shield, 1.8);
+    }
+    // El Prisma en su brazo.
+    if (state.prism) {
+      const py = top + 40, size = 17;
+      if (state.active) {
+        const pulse = 0.5 + 0.5 * Math.sin(time * 3);
+        ctx.save();
+        ctx.globalAlpha = 0.35 + 0.3 * pulse;
+        ctx.beginPath();
+        ctx.arc(cx, py, 30 + pulse * 10, 0, Math.PI * 2);
+        ctx.fillStyle = '#7ea6ff';
+        ctx.fill();
+        ctx.restore();
+      }
+      const gem = () => polyPath(ctx, [[cx, py - size], [cx + size * 0.8, py + size * 0.5], [cx - size * 0.8, py + size * 0.5]]);
+      paperFill(ctx, gem);
+      inkFill(ctx, gem, state.active ? INK.teal : INK.gold);
+      keyLine(ctx, gem, 2);
+    }
   },
   /** El sitio del Prisma: una marca; después de perforar, el cristal a la vista. */
   site: (ctx, s, { time, state }) => {

@@ -118,6 +118,32 @@ export const BRIEFINGS = {
   },
 };
 
+BRIEFINGS.mars = {
+  title: 'Life on Mars',
+  lastButton: 'Empezar la misión',
+  pages: [
+    { art: 'bolt', camera: 'in', heading: 'La otra mitad de la leyenda',
+      text: 'El Prisma está en la Tierra. El grabado de Aztlán dice el resto: solo despierta con un rayo del planeta rojo. Un rayo rojo, seguido de un destello azul. Nadie sabe si es verdad.' },
+    { art: 'mars', camera: 'right', heading: 'Un viaje de meses',
+      text: 'Marte no está a tres días, como la Luna: está a unos ocho meses y medio. La nave sale en la ventana que se abre cada 26 meses, corrige el rumbo a mitad de camino y frena al llegar para que Marte la atrape.' },
+    { art: 'mars', camera: 'in', speaker: 'Control de misión', heading: 'Bajar es lo difícil',
+      text: 'El aire de Marte es muy fino: frena, pero no alcanza. Hace falta escudo térmico para la entrada y motores para el final. Y Marte tira más del doble que la Luna.' },
+    { art: 'storm', camera: 'left', heading: 'La tormenta',
+      text: 'Las tormentas de polvo de Marte tapan el Sol durante horas. Ahí, dice la leyenda, cae el rayo. El equipo tiene que armar el experimento antes de que llegue y sostenerlo mientras dura.' },
+    { art: 'rocket', camera: 'up', heading: 'Qué llevar',
+      text: 'Esta vez la nave no vuelve: se queda en Marte con el experimento. Esto no puede faltar:',
+      list: [
+        'Etapas para salir de la Tierra y frenar al llegar a Marte',
+        'Escudo térmico (la cápsula) para la entrada',
+        'Patas y motor de aterrizaje con empuje para la gravedad de Marte',
+        'El contenedor del Prisma, e instrumentos para medir',
+        'Baterías y paneles: en la tormenta casi no hay Sol',
+      ] },
+    { art: 'bolt', camera: 'in', speaker: 'Control de misión', heading: 'Cada quien en su puesto',
+      text: 'Ciencia fija los parámetros. Ingeniería arma el aparato. Comercio lleva lo que haga falta. Vuelo sigue la tormenta y da la señal. Si el rayo cae y nadie está listo, no habrá otro. Buena suerte.' },
+  ],
+};
+
 /** La historia que toca ver en una escena, o null si en esa escena no hay historia. */
 export const getStory = (scene, missionId) => {
   if (scene === 'prologue') return PROLOGUE;

@@ -222,7 +222,9 @@ const finalize = (score, data, players) => {
   bonus('pilot', 'fuel', fuelQ, 'Uso del combustible en todo el viaje');
   bonus('engineer', 'power', flight.savedPower ? 0.3 : 1, flight.savedPower ? 'Energía: hubo que pasar a ahorro' : 'Energía bien administrada');
   bonus('merchant', 'budget', clamp01((data.economy?.credits ?? 0) / Math.max(1, data.economy?.budget ?? 1) / 0.15), 'Presupuesto al final del viaje');
-  bonus('scientist', 'prism', flight.prism ? 1 : 0, flight.prism ? 'El Prisma volvió a bordo' : 'El Prisma no se recuperó');
+  const onMars = mission?.id === 'mars';
+  if (onMars) bonus('scientist', 'prism', flight.activated ? 0.5 + 0.5 * (flight.sync ?? 0) : 0, flight.activated ? 'El Prisma despertó con el rayo' : 'El Prisma no llegó a despertar');
+  else bonus('scientist', 'prism', flight.prism ? 1 : 0, flight.prism ? 'El Prisma volvió a bordo' : 'El Prisma no se recuperó');
   // Ciencia: lo que de verdad llegó a la Tierra frente a lo que podían dar los instrumentos a bordo.
   const science = flight.science ?? { value: 0, max: 0, generated: 0, sent: 0 };
   if (science.max > 0) {
@@ -234,15 +236,16 @@ const finalize = (score, data, players) => {
 
   const highlights = [];
   const mistakes = [];
-  if (ok) highlights.push(mission?.sandbox ? 'El cohete hizo el viaje completo y volvió entero.' : 'El Prisma llegó a la Tierra: misión cumplida.');
-  if (flight.touchdown === 'soft') highlights.push('Alunizaje suave en el lado oculto.');
+  if (ok) highlights.push(mission?.sandbox ? 'El cohete hizo el viaje completo y volvió entero.' : onMars ? 'Rayo rojo, destello azul: el Prisma despertó y Marte empezó a cambiar.' : 'El Prisma llegó a la Tierra: misión cumplida.');
+  if (onMars && flight.activated && (flight.sync ?? 0) >= 0.85) highlights.push('El experimento se sincronizó con el rayo casi al instante.');
+  if (flight.touchdown === 'soft') highlights.push(onMars ? 'Aterrizaje suave en Marte.' : 'Alunizaje suave en el lado oculto.');
   if (flight.located && flight.scans <= 3) highlights.push(`El Prisma se ubicó con solo ${flight.scans === 1 ? 'una lectura' : `${flight.scans} lecturas`}.`);
   if (flight.dvUsed > 0 && flight.wasted / flight.dvUsed < 0.02) highlights.push('Encendidos muy precisos: casi nada de combustible de más.');
   if (!flight.savedPower) highlights.push('La batería alcanzó sin pasar a modo ahorro.');
   if (science.max > 0 && science.value >= science.max * 0.95) highlights.push(`Llegó toda la ciencia a la Tierra: ${science.value} puntos.`);
   if (!ok) mistakes.push(`${mission?.sandbox ? 'La prueba falló' : 'Misión fallida'}: ${flight.result.text}`);
   if (flight.touchdown === 'crash') mistakes.push('La nave golpeó el suelo al alunizar.');
-  if (flight.touchdown === 'hard') mistakes.push('El alunizaje fue duro: las patas sufrieron.');
+  if (flight.touchdown === 'hard') mistakes.push(onMars ? 'El aterrizaje en Marte fue duro: las patas sufrieron.' : 'El alunizaje fue duro: las patas sufrieron.');
   if (flight.dvUsed > 0 && flight.wasted / flight.dvUsed >= 0.05) mistakes.push(`Se quemaron ${Math.round(flight.wasted)} m/s de más.`);
   if (flight.repairsPaid > 0) mistakes.push(`Las reparaciones costaron ${Math.round(flight.repairsPaid)} créditos.`);
   if (flight.savedPower) mistakes.push('Faltó energía y hubo que pasar a modo ahorro.');
@@ -280,6 +283,7 @@ const finalize = (score, data, players) => {
     plan: data.plan ?? null,
     difficulty: data.difficulty ?? 'Normal',
     sandbox: Boolean(mission?.sandbox),
+    missionId: mission?.id ?? null,
     highlights,
     mistakes,
     badges,

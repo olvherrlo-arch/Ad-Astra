@@ -56,6 +56,7 @@ const kwh = (joules) => `${number(joules / 3.6e6, 1)} kWh`;
 const MAP_POINTS = {
   ascent: [90, 92], tli: [300, 52], loi: [520, 60], descent: [548, 104], surface: [560, 120],
   liftoff: [548, 104], tei: [520, 140], reentry: [92, 112], deorbit: [150, 60],
+  tmi: [220, 50], mcc: [360, 46], moi: [505, 62], entry: [528, 84], experiment: [540, 100], storm: [540, 100], bloom: [540, 100],
 };
 
 /**
@@ -82,11 +83,13 @@ export const mountFlight = (container, { readOnly = false } = {}) => {
       return n;
     };
     map.replaceChildren();
+    const toMars = state()?.missionId === 'mars';
     const far = node('path', { d: 'M560 10 A 70 70 0 0 1 560 160 L 640 160 L 640 10 Z', class: `map-far${flight.signal ? '' : ' dark'}` });
-    map.append(far, node('text', { x: 632, y: 24, class: 'map-label', 'text-anchor': 'end' }, flight.relay ? 'cara oculta · repetidor' : 'cara oculta · sin señal directa'));
-    map.append(node('path', { d: 'M90 92 C 200 10, 420 10, 520 60 C 600 95, 600 135, 520 140 C 420 160, 200 160, 92 112', class: 'map-path' }));
+    if (!toMars) map.append(far, node('text', { x: 632, y: 24, class: 'map-label', 'text-anchor': 'end' }, flight.relay ? 'cara oculta · repetidor' : 'cara oculta · sin señal directa'));
+    // A Marte se va y no se vuelve: solo el arco de ida.
+    map.append(node('path', { d: toMars ? 'M90 92 C 200 10, 420 10, 528 84' : 'M90 92 C 200 10, 420 10, 520 60 C 600 95, 600 135, 520 140 C 420 160, 200 160, 92 112', class: 'map-path' }));
     map.append(node('circle', { cx: 60, cy: 100, r: 36, class: 'map-earth' }), node('text', { x: 60, y: 152, class: 'map-label', 'text-anchor': 'middle' }, 'Tierra'));
-    map.append(node('circle', { cx: 540, cy: 100, r: 22, class: 'map-moon' }), node('text', { x: 540, y: 140, class: 'map-label', 'text-anchor': 'middle' }, 'Luna'));
+    map.append(node('circle', { cx: 540, cy: 100, r: 22, class: toMars ? 'map-moon map-mars' : 'map-moon' }), node('text', { x: 540, y: 140, class: 'map-label', 'text-anchor': 'middle' }, toMars ? 'Marte' : 'Luna'));
     legs.forEach((leg, index) => {
       const [x, y] = MAP_POINTS[leg.id] ?? [0, 0];
       const status = index < flight.legIndex || (flight.phase === 'over' && flight.result?.ok) ? 'done' : index === flight.legIndex ? 'now' : 'next';
