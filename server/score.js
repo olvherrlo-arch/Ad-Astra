@@ -20,6 +20,7 @@
  *   seen:    clave de suceso → true
  *   crew:    contadores internos (quién armó el cohete, quién compró)
  *   final:   el resumen del equipo al terminar el vuelo (null mientras tanto)
+ *   beforeLaunch: copia del puntaje justo antes de despegar (para "Rediseñar y volver a volar")
  */
 import { installedUids, toPhysicsStages } from '../js/assembly.js';
 import { getMission } from '../js/missions.js';
@@ -54,7 +55,7 @@ export const POINTS = {
 const clamp01 = (value) => Math.min(1, Math.max(0, value));
 const quality = (value) => (Number.isFinite(value) ? clamp01(Number(value)) : null);
 
-export const freshScore = () => ({ players: {}, seen: {}, crew: { builders: {}, buyers: {} }, final: null });
+export const freshScore = () => ({ players: {}, seen: {}, crew: { builders: {}, buyers: {} }, final: null, beforeLaunch: null });
 
 /**
  * Suma un suceso. `q` = nota de precisión (o null si no se puede medir).
@@ -105,6 +106,8 @@ const share = (score, record, actorsById, { key, points, q, label, role }) => {
  */
 export const scoreAction = (before, after, action, actor, players = []) => {
   if (action.type === 'mission:start') return freshScore();
+  // Volver a intentar: el puntaje vuelve a como estaba justo antes del despegue (cuenta el último vuelo).
+  if (action.type === 'mission:retry') return { ...(before.score?.beforeLaunch ?? freshScore()), beforeLaunch: null, final: null };
   if (after.scene !== 'mission') return after.score ?? null;
   const base = after.score ?? freshScore();
   const score = { ...base, players: { ...base.players }, seen: { ...base.seen }, crew: { builders: { ...base.crew.builders }, buyers: { ...base.crew.buyers } } };
@@ -130,6 +133,8 @@ export const scoreAction = (before, after, action, actor, players = []) => {
 
   // ---------- Despegue: se evalúa el armado y las compras ----------
   if (action.type === 'stage:advance' && after.flight && !before.flight) {
+    // Foto del puntaje antes del despegue, por si después vuelven a intentarlo.
+    score.beforeLaunch = structuredClone({ ...score, beforeLaunch: null, final: null });
     const byId = Object.fromEntries(players.map((p) => [p.id, { id: p.id, name: p.name, role: p.role ?? null }]));
     byId[actor.id] = who;
     // La misma revisión que decidió el despegue: menos advertencias = mejor armado.

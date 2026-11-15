@@ -278,7 +278,9 @@ export const mountWorld = (container) => {
         break;
       case 'lever': {
         if (stageId === 'debrief') {
-          add('Volver a la sala de embarque', () => endGame(), { hold: true, blocked: isHost() ? null : 'El anfitrión decide cuándo volver a la sala de embarque.' });
+          const hostReason = isHost() ? null : 'Lo decide el anfitrión.';
+          add('Rediseñar el cohete y volver a volar', () => { sounds.good(); sendAction({ type: 'mission:retry' }); }, { hold: true, blocked: hostReason });
+          add('Volver a la sala de embarque', () => endGame(), { hold: true, blocked: hostReason });
         } else if (stageId === 'validation') {
           add('Pasar de etapa', () => {}, { blocked: 'El despegue se da desde la plataforma de lanzamiento, en el hangar.' });
         } else if (g.next && !flight) {
@@ -1249,6 +1251,7 @@ export const mountWorld = (container) => {
     if (wantedMap !== mapId) enterMap(wantedMap, true);
     if (lastStage !== null && lastStage !== g.stageId && STAGE_SHOTS[g.stageId]) playCinematic(STAGE_SHOTS[g.stageId](g.data));
     // Al llegar a la Evaluación, el informe del vuelo se abre solo una vez.
+    if (g.stageId !== 'debrief') seenResult = false; // al volver a intentar, el resultado nuevo se abre otra vez
     if (g.stageId === 'debrief' && !seenResult) {
       seenResult = true;
       window.setTimeout(() => { if (game()?.stageId === 'debrief' && panel.hidden) openPanel(['score', 'flight', 'board']); }, lastStage === null ? 300 : 3_000);

@@ -76,6 +76,7 @@ export const session = {
   room: null, //  { code, hostId, isPublic, phase, settings, maxPlayers, players }
   state: null, // { version, data } del juego
   chat: [], //    [{ id, text, author?, color?, playerId?, mine? }] (sin author = aviso del sistema)
+  solo: false, // se entró con SOLO: la sala despega sola apenas se abre (js/hud.js)
 };
 
 export const getPlayer = (id) => session.room?.players.find((p) => p.id === id);

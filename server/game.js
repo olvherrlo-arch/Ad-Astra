@@ -101,6 +101,7 @@ export const isGameAction = (action) => {
     case 'story:replay':
     case 'story:skip':
     case 'stage:advance':
+    case 'mission:retry':
       return true;
     case 'mission:start':
       return typeof action.missionId === 'string' && action.missionId.length <= 20;
@@ -248,12 +249,31 @@ const applyRules = (state, action, actor) => {
         read: {},
         missionId: chosen.id,
         stageIndex: 0,
+        attempt: 1,
         confirmed: nobodyConfirmed(),
         campaign: {
           ...data.campaign,
           missions: { ...data.campaign.missions, [chosen.id]: status === 'completed' ? status : 'in_progress' },
         },
       }, `${actor.name} eligió la misión ${chosen.title}.`, { vault, undo: [], ship: null });
+    }
+
+    // ---------- Rediseñar y volver a volar ----------
+    // Desde la Evaluación el anfitrión puede volver a Construcción con el mismo cohete, la bodega y el dinero
+    // que quedó (el combustible ya quemado no se devuelve). Las tareas de la estación siguen hechas: se
+    // cambia el diseño, se revisa y se vuelve a despegar. El puntaje vuelve a como estaba antes del despegue.
+    case 'mission:retry': {
+      const refusal = hostOnly('decide volver a intentarlo');
+      if (refusal) return refusal;
+      if (data.scene !== 'mission' || stages[data.stageIndex]?.id !== 'debrief') return { error: 'Se puede volver a intentar desde la Evaluación.' };
+      const buildIndex = stages.findIndex((stage) => stage.id === 'build');
+      if (buildIndex === -1) return { error: 'Esta misión no tiene etapa de construcción.' };
+      const attempt = (data.attempt ?? 1) + 1;
+      return commit(
+        { stageIndex: buildIndex, flight: null, carrying: {}, jobs: {}, attempt },
+        `${actor.name} vuelve al hangar: intento ${attempt}. Cambien el diseño, revísenlo y despeguen otra vez.`,
+        { ship: null },
+      );
     }
 
     // ---------- La palanca de etapa y el despegue ----------

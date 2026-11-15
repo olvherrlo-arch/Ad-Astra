@@ -169,6 +169,11 @@ export const mountHud = (container) => {
   start.addEventListener('click', () => {
     if (isHost()) startGame();
   });
+  // Modo SOLO (menú principal): la sala es solo tuya, así que despega sola.
+  if (session.solo && isHost()) {
+    session.solo = false;
+    window.setTimeout(() => { if (isHost() && session.room?.players.length === 1) startGame(); }, 600);
+  }
 
   // ---------- CUSTOMIZE ----------
   const showCustomize = () => {

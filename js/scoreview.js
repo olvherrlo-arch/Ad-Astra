@@ -8,7 +8,7 @@
  * no por puntaje, y no hay "ganador".
  */
 import { drawAstronaut } from './character.js';
-import { on, session } from './connection.js';
+import { isHost, on, sendAction, session } from './connection.js';
 import { reducedMotion } from './settings.js';
 import { ROLES, roleName } from './shared.js';
 
@@ -76,7 +76,7 @@ export const mountScore = (box) => {
       return;
     }
     // Solo se redibuja si cambió algo (así los números no vuelven a contar desde cero).
-    const key = JSON.stringify([final.teamPoints, session.room?.players.map((p) => [p.id, p.connected, p.name])]);
+    const key = JSON.stringify([final.teamPoints, session.state.data.attempt, session.room?.hostId, session.room?.players.map((p) => [p.id, p.connected, p.name])]);
     if (key === shownKey) return;
     const firstTime = shownKey === '';
     shownKey = key;
@@ -84,7 +84,8 @@ export const mountScore = (box) => {
     // ---------- El equipo ----------
     const team = el('section', `score-team ${final.ok ? 'ok' : 'bad'}`);
     const head = el('header', 'score-team-head');
-    head.append(el('p', 'score-kicker', 'Resultado del equipo'), el('h3', 'score-result', final.ok ? 'Misión cumplida' : 'Misión fallida'));
+    const attempt = session.state.data.attempt ?? 1;
+    head.append(el('p', 'score-kicker', attempt > 1 ? `Resultado del equipo · intento ${attempt}` : 'Resultado del equipo'), el('h3', 'score-result', final.ok ? 'Misión cumplida' : 'Misión fallida'));
     const total = el('strong', 'score-team-points');
     const totalBox = el('div', 'score-team-total');
     totalBox.append(total, el('span', '', 'puntos del equipo'));
@@ -194,7 +195,21 @@ export const mountScore = (box) => {
     });
 
     const note = el('p', 'score-note', 'Cada rol suma por lo suyo y con su propia precisión: los puntajes no compiten entre sí, muestran cómo aportó cada quien.');
-    box.replaceChildren(team, cards, note);
+    // Volver a intentar: mismo cohete, misma bodega y el dinero que quedó. Lo decide el anfitrión.
+    const retry = el('div', 'score-retry');
+    const retryText = el('p', '', final.ok
+      ? '¿Se puede hacer mejor? Vuelvan al hangar, cambien el diseño y vuelen otra vez: cuenta el último vuelo.'
+      : 'Vuelvan al hangar con lo aprendido: cambien el diseño, revísenlo y despeguen otra vez. El combustible quemado no se devuelve.');
+    retry.append(retryText);
+    if (isHost()) {
+      const button = /** @type {HTMLButtonElement} */ (el('button', 'score-retry-button', 'Rediseñar y volver a volar'));
+      button.type = 'button';
+      button.addEventListener('click', () => sendAction({ type: 'mission:retry' }));
+      retry.append(button);
+    } else {
+      retry.append(el('small', '', 'Lo decide el anfitrión (también desde la palanca de la sala de misión).'));
+    }
+    box.replaceChildren(team, retry, cards, note);
     box.classList.toggle('score-animate', firstTime && !reducedMotion());
   };
   box.classList.add('score-screen');

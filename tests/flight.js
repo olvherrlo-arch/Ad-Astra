@@ -346,5 +346,30 @@ console.log('\n6) Puntaje individual y resumen final');
   })());
 }
 
+console.log('\n7) Rediseñar y volver a volar');
+{
+  // Pasarse 5 % en cada encendido hace fallar el vuelo (ver el balance de arriba).
+  const retry = newGame(3);
+  fly(retry, { overshoot: 0.05 });
+  const failed = retry.data();
+  check('el vuelo descuidado termina en la Evaluación sin el Prisma', retry.stage() === 'debrief' && failed.flight.result && !failed.flight.result.ok);
+  check('solo el anfitrión decide volver a intentar', Boolean(retry.send(meche, { type: 'mission:retry' }).error));
+  const pointsAtLaunch = failed.score.beforeLaunch?.players[ana.id]?.points;
+  const creditsLeft = failed.economy.credits;
+  const rocketBefore = JSON.stringify(failed.rocket);
+  const result = retry.send(ana, { type: 'mission:retry' });
+  const again = retry.data();
+  check('"Rediseñar y volver a volar" vuelve a Construcción', !result.error && retry.stage() === 'build' && again.flight === null && again.attempt === 2);
+  check('se conservan el cohete, la bodega y el dinero que quedó', JSON.stringify(again.rocket) === rocketBefore && again.economy.credits === creditsLeft);
+  check('el puntaje vuelve a como estaba antes del despegue', again.score.final === null && again.score.players[ana.id].points === pointsAtLaunch);
+  check('fuera de la Evaluación no se puede volver a intentar', Boolean(retry.send(ana, { type: 'mission:retry' }).error));
+  retry.next(); // Construcción → Validación
+  const relaunch = retry.next(); // Validación → Vuelo
+  check('se puede volver a despegar', !relaunch.error && retry.stage() === 'flight');
+  const second = fly(retry);
+  check(`el segundo vuelo, con cuidado, termina ("${second.result?.text}")`, Boolean(second.result) && retry.stage() === 'debrief');
+  check('el resumen nuevo es del último vuelo', Boolean(retry.data().score.final) && retry.data().attempt === 2);
+}
+
 console.log(failures === 0 ? `\nTODO OK ✅ (${checks} verificaciones del vuelo)` : `\n${failures} verificación(es) fallaron ❌`);
 process.exit(failures === 0 ? 0 : 1);

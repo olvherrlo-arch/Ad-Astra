@@ -1942,3 +1942,8 @@ html[data-effects='reduced'] .credits-star { animation: none !important; }
   .score-team-total { grid-row: auto; justify-items: start; text-align: left; }
   .score-role-row { grid-template-columns: 92px minmax(0, 1fr) 36px; }
 }
+.score-retry { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 12px 16px; background: var(--night-deep); border: 2px dashed var(--gold); border-radius: 10px; }
+.score-retry p { flex: 1 1 280px; margin: 0; font-weight: 600; }
+.score-retry small { color: var(--dim); }
+.score-retry-button { padding: 9px 18px; background: var(--gold); color: #1f2d5c; border: 2px solid var(--starlight); border-radius: 8px; font: inherit; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; box-shadow: 3px 3px 0 var(--starlight); transition: transform 0.12s; }
+.score-retry-button:hover { transform: translate(-1px, -1px); }

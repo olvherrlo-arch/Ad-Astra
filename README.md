@@ -32,6 +32,10 @@ No ejecutes con ▶ los archivos de `js/`: corren en el navegador, no en Node.
 Cambios en `css/`, `js/`, `assets/` o `index.html`: solo recarga la página.
 Cambios en `server/` o en `js/shared.js` con `npm start`: detén el servidor (Ctrl+C) y vuelve a arrancarlo.
 
+## Jugar solo
+
+**Play → Solo** abre una sala privada solo para ti y despega sola: manejas los cuatro roles.
+
 ## Opciones y créditos
 
 - **Options** (menú principal, ⚙ del lobby u **Opciones** en la partida): volumen general, música y efectos
@@ -118,6 +122,10 @@ Si el anfitrión se va, el rol pasa a quien lleva más tiempo en la sala.
   cumplidos, lo mejor y las complicaciones) y una tarjeta por tripulante con su puntaje, sus acciones, su
   precisión en estrellas (solo si hubo algo medible), su aporte por área, sus mejores aportes y sus logros.
   Le siguen el informe del vuelo y el tablero. Volver con el Prisma completa la misión y desbloquea Life on Mars.
+- **Rediseñar y volver a volar:** desde Resultados (o la palanca de la sala de misión) el anfitrión vuelve al
+  hangar con el mismo cohete, la bodega y el dinero que quedó (el combustible quemado no se devuelve). Se
+  cambia el diseño, se revisa y se despega otra vez. Cuenta el último vuelo: el puntaje vuelve a como estaba
+  antes del despegue y la pantalla muestra el número de intento.
 - **Puntaje:** lo calcula el servidor con lo que de verdad pasa en el juego: tareas terminadas, cajas
   entregadas, el armado y las compras (al despegar), cada encendido, el alunizaje, ubicar el Prisma,
   perforar, reparar, llevar repuestos… La precisión sale de datos medibles (tiempo con la aguja en la zona,
@@ -338,5 +346,5 @@ y las salas abiertas se borran.
 - Las salas viven en memoria: si reinicias el servidor, se borran.
 - Si recargas la página, entras como jugador nuevo.
 - Bloquear usa un identificador guardado en el navegador: alguien decidido puede evitarlo borrando sus datos.
-- SOLO dice "Próximamente": conéctalo en `js/menu.js` cuando exista.
+- SOLO abre una sala privada que despega sola: una persona maneja los cuatro roles (modo demo).
 - En celular la sala se ve mejor con el teléfono en horizontal.

@@ -28,8 +28,8 @@ const MENU_HTML = `
     <nav class="menu" aria-label="Menú principal">
       <button type="button" class="menu-btn level-0" data-nav data-toggle="play" aria-expanded="false">Play</button>
       <div class="submenu" id="section-play" hidden>
-        <button type="button" class="menu-btn level-1" data-nav aria-disabled="true">
-          Solo <span class="menu-btn-note">Próximamente</span>
+        <button type="button" class="menu-btn level-1" data-nav data-action="solo">
+          Solo <span class="menu-btn-note">Tú solo, con los 4 roles</span>
         </button>
         <button type="button" class="menu-btn level-1" data-nav data-toggle="multiplayer" aria-expanded="false">Multiplayer</button>
 
@@ -176,8 +176,8 @@ export const mountMenu = (container) => {
   };
 
   // ---------- Entrar a una sala ----------
-  const enterLobby = async (request) => {
-    const name = nameInputs[0].value.trim();
+  const enterLobby = async (request, fallbackName = '') => {
+    const name = nameInputs[0].value.trim() || fallbackName;
     if (!name) {
       showError('Escribe tu nombre de piloto para entrar.');
       nameInputs[0].focus();
@@ -200,6 +200,12 @@ export const mountMenu = (container) => {
     const toggleButton = event.target.closest('[data-toggle]');
     if (toggleButton) toggle(toggleButton.dataset.toggle);
     if (event.target.closest('[data-action="create"]')) enterLobby(createRoom);
+    // SOLO: una sala privada solo para ti que despega sola. Manejas los cuatro roles (modo demo).
+    if (event.target.closest('[data-action="solo"]')) {
+      const name = nameInputs[0].value.trim() || 'Piloto';
+      session.solo = true;
+      enterLobby(createRoom, name).then(() => { if (!session.room) session.solo = false; });
+    }
     const opener = event.target.closest('[data-action="options"], [data-action="credits"]');
     if (opener) {
       const back = () => opener.focus();

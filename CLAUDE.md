@@ -6,7 +6,7 @@ El equipo habla español: textos del juego, comentarios y respuestas en español
 ## Correr y probar
 - `npm run dev`: servidor + página en http://localhost:3000 (node --watch).
 - `npm test`: 101 pruebas de física, catálogo y cohete (tests/physics.js), 56 del mercado (tests/market.js),
-  58 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 76 del vuelo y el puntaje
+  58 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 85 del vuelo, el puntaje y el reintento
   (tests/flight.js, vuela partidas con semillas fijas) y las de jugadores simulados (tests/simulate.js).
   tests/helpers.js tiene ayudas comunes (hacer tareas del mundo sin red).
   Todas deben terminar en "TODO OK ✅".
@@ -125,6 +125,10 @@ Cada rol hace cosas con las manos, la cooperación es necesaria y nadie espera s
   con `action.quality` 0..1 que mandan los minijuegos de js/minigames.js, `aim`/Δv de más en encendidos,
   `touchdown`, lecturas del escáner; bonos finales por rol; `final` con resumen, logros y errores).
   Pantalla `js/scoreview.js` (pestaña "Resultados", primera en la Evaluación). Pruebas en tests/flight.js §6.
+- SOLO (menú): `session.solo = true` + createRoom; js/hud.js despega sola si el anfitrión está solo.
+- Rediseñar y volver a volar: acción `mission:retry` (anfitrión, solo en debrief) → etapa build, `flight: null`,
+  `attempt + 1`, se conservan cohete, bodega y créditos; `score.beforeLaunch` (foto al despegar) se restaura.
+  Botón en Resultados y en la palanca. Pruebas en tests/flight.js §7. Vuelo y puntaje: 85 verificaciones.
 
 ## Actualización de experiencia (UPDATE MASTER PROMPT del usuario: tutoriales, cinemáticas, constructor animado, UI)
 Orden pedido: 1 UI más simple → 2 tutoriales → 3 cinemáticas → 4 constructor animado → 5 pulido.
