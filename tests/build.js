@@ -11,6 +11,7 @@ import { getMission } from '../js/missions.js';
 import { ROLES } from '../js/shared.js';
 import { analyzeRocket, propellantCost, validateRocket } from '../js/rocket.js';
 import { applyAction, createInitialState, isGameAction, publicState } from '../server/game.js';
+import { doStageTasks } from './helpers.js';
 
 let failures = 0;
 let checks = 0;
@@ -38,8 +39,9 @@ const send = (who, action) => {
 };
 const data = () => state.data;
 const stageId = () => getMission('moon').stages[data().stageIndex].id;
+/** Cada rol hace sus tareas de la etapa y alguien baja la palanca (el despegue lo da Vuelo). */
 const nextStage = () => {
-  for (const member of crew) send(member, { type: 'role:confirm', role: member.role, value: true });
+  doStageTasks(send, data, stageId(), (role) => crew.find((member) => member.role === role));
   return send(ana, { type: 'stage:advance' });
 };
 const free = (partId) => data().economy.inventory.find((item) => item.partId === partId && !installedUids(data().rocket).includes(item.uid))?.uid;
@@ -190,7 +192,7 @@ check(`al despegar se cobra el combustible (${fuel} créditos)`, data().economy.
 check('la bitácora lo cuenta', data().log.at(-1).includes('combustible'));
 check('en vuelo ya no se arma ni se compra',
   Boolean(send(ines, { type: 'build:remove', uid: capsuleUid }).error) && Boolean(send(meche, { type: 'market:buy', offerId: 'battery:common' }).error));
-check('los 4 roles siguen teniendo su visto bueno en cada etapa', ROLES.every((role) => role.id in data().confirmed));
+check('cada rol sigue teniendo su marca de "listo" en cada etapa', ROLES.every((role) => role.id in data().confirmed));
 
 // ------------------------------------------------------------
 console.log('\n7) Reglas de encaje, sueltas');

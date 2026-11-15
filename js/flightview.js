@@ -58,7 +58,11 @@ const MAP_POINTS = {
   liftoff: [548, 104], tei: [520, 140], reentry: [92, 112],
 };
 
-export const mountFlight = (container) => {
+/**
+ * Con `readOnly` es un informe: mapa, tramo, telemetría, bitácora y resultado, sin controles.
+ * Así se usa dentro del mundo (js/world.js), donde cada acción se hace caminando hasta su puesto.
+ */
+export const mountFlight = (container, { readOnly = false } = {}) => {
   container.innerHTML = FLIGHT_HTML;
   const $ = (selector) => /** @type {HTMLElement} */ (container.querySelector(selector));
   const map = $('.flight-map');
@@ -300,12 +304,13 @@ export const mountFlight = (container) => {
     renderRoles(flight, legs);
     renderTelemetry(flight, legs);
     renderResult(flight);
-    $('.flight-roles').hidden = flight.phase === 'over';
+    $('.flight-roles').hidden = readOnly || flight.phase === 'over';
+    if (readOnly) $('.flight-emergency').hidden = true;
     $('.flight-leg').hidden = flight.phase === 'over';
     const banner = $('.flight-banner');
     const leg = legs[flight.legIndex];
     const waiting = flight.phase === 'stageDone' || (flight.phase === 'ready' && leg && leg.stage !== stageId);
-    banner.hidden = !(waiting || (flight.phase === 'over' && stageId !== 'debrief'));
+    banner.hidden = readOnly || !(waiting || (flight.phase === 'over' && stageId !== 'debrief'));
     banner.textContent = flight.phase === 'over'
       ? 'El vuelo terminó. Den el visto bueno y el anfitrión pasa a la Evaluación.'
       : `Esta parte del viaje terminó. Den el visto bueno: el anfitrión pasa a "${mission.stages.find((s) => s.id === leg?.stage)?.name ?? 'la siguiente etapa'}".`;

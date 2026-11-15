@@ -56,6 +56,17 @@ export const sounds = {
   },
   /** Se pasa una página de la historia. */
   page: () => tone({ from: 420, to: 300, duration: 0.1, type: 'triangle', gain: 0.07 }),
+  /** Algo salió bien en una tarea (minijuego terminado, caja entregada). */
+  good: () => {
+    tone({ from: 520, to: 780, duration: 0.12, type: 'triangle', gain: 0.12 });
+    tone({ from: 780, to: 1170, duration: 0.18, type: 'triangle', gain: 0.12, delay: 0.1 });
+  },
+  /** Error o fuera de zona. */
+  bad: () => tone({ from: 220, to: 130, duration: 0.22, type: 'sawtooth', gain: 0.06 }),
+  /** Tomar, soltar o encajar algo. */
+  pick: () => tone({ from: 340, to: 520, duration: 0.08, type: 'square', gain: 0.06 }),
+  /** Motor empujando (se llama varias veces por segundo mientras dura). */
+  thrust: (level = 1) => tone({ from: 70 + level * 30, to: 55, duration: 0.2, type: 'sawtooth', gain: 0.03 + level * 0.03 }),
   /** Mensaje nuevo en el chat. */
   message: () => tone({ from: 880, to: 1180, duration: 0.08, gain: 0.05 }),
 };

@@ -6,7 +6,8 @@
  * Para agregar una etapa o cambiar una tarea, edita esta lista: la mesa de misión se arma sola.
  * `tools: false` = etapa de conversación, sin herramienta (Informe y Planificación); en ella
  * cada rol lee su tarea y da el visto bueno. Con `tools: true`, `tool` dice cuál se muestra
- * (una, o varias en pestañas; las arma js/desk.js).
+ * (una, o varias en pestañas; se abren desde su puesto en el mundo: js/world.js).
+ * `tasks` es el resumen en palabras de lo que hace cada rol; las tareas que se juegan están en js/tasks.js.
  *
  * La historia del Prisma y de Aztlán es ficción del juego, no ciencia.
  */

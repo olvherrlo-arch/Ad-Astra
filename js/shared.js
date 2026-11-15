@@ -136,7 +136,7 @@ export const EVENTS = {
   //                                       `seatToken` (lo da el servidor al entrar) recupera tu lugar si te reconectas.
   ROOM_LEAVE: 'room:leave',
   ROOMS_LIST: 'rooms:list', //           → responde [{ code, hostName, players, maxPlayers }] (salas públicas)
-  PLAYER_MOVE: 'player:move', //         { x, y, facing, moving }
+  PLAYER_MOVE: 'player:move', //         { x, y, facing, moving, map?, act? }  (map y act solo en la misión)
   PLAYER_CUSTOMIZE: 'player:customize', // { color?, hat? }
   PLAYER_SET_READY: 'player:setReady', // true / false
   ROOM_SET_PRIVACY: 'room:setPrivacy', //  true = pública   (solo anfitrión)
@@ -145,14 +145,14 @@ export const EVENTS = {
   GAME_START: 'game:start', //           (solo anfitrión)
   GAME_END: 'game:end', //               vuelve al lobby (solo anfitrión)
   CHAT_SEND: 'chat:send', //             "texto"
-  STATE_ACTION: 'state:action', //       acción de la misión, p. ej. { type: 'role:confirm', role: 'pilot', value: true }
+  STATE_ACTION: 'state:action', //       acción de la misión, p. ej. { type: 'task:done', id: 'briefing.scope' }
 
   // Servidor → todos los de la sala
   ROOM_UPDATE: 'room:update', //         sala completa
   PLAYER_JOINED: 'room:playerJoined', // jugador (+ rejoined: true si volvió a su lugar)
   PLAYER_LEFT: 'room:playerLeft', //     { player, reason: 'left' | 'disconnected' | 'away' | 'kicked' | 'banned' }
   //                                       'away' = perdió la conexión en plena misión; su lugar queda guardado.
-  PLAYER_MOVED: 'player:moved', //       { id, x, y, facing, moving }
+  PLAYER_MOVED: 'player:moved', //       { id, x, y, facing, moving, map, act }
   COUNTDOWN: 'game:countdown', //        { seconds } o { seconds: null, cancelled: "motivo" }
   KICKED: 'room:kicked', //              { banned }  (solo al expulsado)
   CHAT_MESSAGE: 'chat:message', //       { id, playerId, playerName, color, text, sentAt }

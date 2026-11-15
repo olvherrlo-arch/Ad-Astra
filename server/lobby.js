@@ -12,6 +12,7 @@ import {
   normalizeSetting,
   startBlocker,
 } from '../js/shared.js';
+import { MAPS, clampToMap, mapIdFor } from '../js/worldmaps.js';
 import { broadcastRoom, removeFromRoom, removeSeat, returnToLobby, startCountdown, toSnapshot } from './rooms.js';
 
 export const registerLobbyHandlers = (io, socket, store) => {
@@ -33,19 +34,29 @@ export const registerLobbyHandlers = (io, socket, store) => {
 
   socket.on(EVENTS.PLAYER_MOVE, (move) => {
     const context = current();
-    if (!context || context.room.phase === 'playing' || typeof move !== 'object' || move === null) return;
+    if (!context || typeof move !== 'object' || move === null) return;
     const x = Number(move.x), y = Number(move.y);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
 
-    const position = clampToFloor(x, y);
+    // En el lobby se camina por la sala de embarque; en la misión, por el mapa en el que está la tripulación
+    // (js/worldmaps.js). `map` evita aceptar un paso que venía en camino desde el mapa anterior.
+    const { room } = context;
+    const playing = room.phase === 'playing';
+    const mapId = playing ? mapIdFor(room.state.data) : null;
+    if (playing && (room.state.data.scene !== 'mission' || move.map !== mapId)) return;
+    const position = playing ? clampToMap(MAPS[mapId], x, y) : clampToFloor(x, y);
     const facing = move.facing === -1 ? -1 : 1;
-    Object.assign(context.me, { x: Math.round(position.x), y: Math.round(position.y), facing });
-    socket.to(context.room.code).emit(EVENTS.PLAYER_MOVED, {
+    // `act` = lo que está haciendo (por ejemplo "burn:0.6" mientras pilotea): los demás lo ven en vivo.
+    const act = typeof move.act === 'string' ? move.act.slice(0, 24) : '';
+    Object.assign(context.me, { x: Math.round(position.x), y: Math.round(position.y), facing, map: mapId });
+    socket.to(room.code).emit(EVENTS.PLAYER_MOVED, {
       id: context.me.id,
       x: context.me.x,
       y: context.me.y,
       facing,
       moving: Boolean(move.moving),
+      map: mapId,
+      act,
     });
   });
 

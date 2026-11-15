@@ -8,31 +8,40 @@
  *   prologue  la historia inicial, página por página (solo la primera vez en cada sala)
  *   select    la constelación: se elige la misión
  *   briefing  el informe de la misión elegida, página por página
- *   mission   la mesa de misión: etapas y visto bueno de cada rol
+ *   mission   la misión: los tripulantes caminan por la estación, la nave y la Luna (js/world.js)
  * En las escenas de lectura todos van en la misma página: el anfitrión la pasa, y cada
  * quien avisa "Ya leí" para que el anfitrión sepa cuándo seguir.
+ *
+ * En la misión no hay "visto bueno": cada rol tiene tareas que se hacen con las manos (js/tasks.js,
+ * server/world.js). `data.confirmed[rol]` se calcula solo: un rol está listo cuando terminó sus tareas
+ * de la etapa. Con las tareas de los roles que tienen tripulante hechas, cualquiera baja la palanca de
+ * etapa (`stage:advance`); el despegue lo da Vuelo. Durante el viaje la etapa cambia sola al terminar
+ * sus tramos.
  *
  * El estado tiene tres partes:
  *   version  sube en 1 con cada cambio aceptado
  *   data     lo que ven todos
- *   secret   lo que solo sabe el servidor (nunca se envía): la semilla del azar de la misión y
- *            `vault`, con la verdad de cada oferta y de cada pieza del mercado negro.
+ *   secret   lo que solo sabe el servidor (nunca se envía): la semilla del azar de la misión,
+ *            `vault` (la verdad de cada oferta y de cada pieza del mercado negro) y `ship` (la nave
+ *            con sus números verdaderos y el lugar donde está enterrado el Prisma).
  *
- * El dinero y las compras están en server/economy.js y el armado del cohete en server/build.js;
- * este archivo les pasa las acciones y decide cuándo se puede pasar de etapa.
- * El vuelo está en server/flight.js: empieza al salir de Validación y dura las etapas Vuelo,
- * Superficie y Regreso.
+ * El dinero y las compras están en server/economy.js, el armado del cohete en server/build.js, las
+ * tareas en server/world.js y el vuelo en server/flight.js: este archivo les pasa las acciones y
+ * decide cuándo se pasa de etapa.
  */
 import { randomInt } from 'node:crypto';
 import { emptyRocket, installedUids, toPhysicsStages } from '../js/assembly.js';
 import { freshCampaign, getMission } from '../js/missions.js';
 import { number } from '../js/partinfo.js';
 import { propellantCost, validateRocket } from '../js/rocket.js';
-import { EVENTS, ROLES, canActAs, isRoleId, roleName } from '../js/shared.js';
+import { EVENTS, ROLES, canActAs, roleHolder, roleName } from '../js/shared.js';
 import { getStory } from '../js/story.js';
+import { missingTasks, rolesReady } from '../js/tasks.js';
+import { mapIdFor } from '../js/worldmaps.js';
 import { applyBuildAction, isBuildAction } from './build.js';
 import { applyEconomyAction, isEconomyAction, openEconomy } from './economy.js';
 import { applyFlightAction, isFlightAction, startFlight } from './flight.js';
+import { applyWorldAction, isWorldAction } from './world.js';
 
 const LOG_LIMIT = 30;
 /** Etapas de la misión que son parte del viaje (las maneja server/flight.js). */
@@ -49,6 +58,8 @@ const completeMission = (campaign, missionId) => {
 const UNDO_LIMIT = 40;
 
 const nobodyConfirmed = () => Object.fromEntries(ROLES.map((role) => [role.id, false]));
+/** Tareas, manos y ventajas en cero: así empieza cada misión. */
+const freshWorld = () => ({ tasks: {}, carrying: {}, perks: {}, jobs: {} });
 
 /**
  * Estado con el que empieza cada partida (cada vez que el anfitrión presiona Despegar).
@@ -63,12 +74,13 @@ export const createInitialState = (campaign = freshCampaign()) => ({
     read: {}, //                     id de jugador → true si ya avisó que leyó esta página
     missionId: null, //              misión en curso (null hasta elegirla en la constelación)
     stageIndex: 0,
-    confirmed: nobodyConfirmed(), // visto bueno de cada rol en la etapa actual
+    confirmed: nobodyConfirmed(), // rol → true cuando terminó sus tareas de la etapa (se calcula solo)
     log: [], //                      bitácora: lo último que pasó, para que todos se enteren
     economy: null, //                presupuesto, mercado y bodega (se abre al elegir la misión)
     rocket: null, //                 el cohete armado (js/assembly.js)
     flight: null, //                 el vuelo en curso (server/flight.js)
     undoSteps: 0, //                 cuántos cambios del cohete se pueden deshacer
+    ...freshWorld(), //              tareas hechas, lo que lleva cada quien, ventajas (server/world.js)
     campaign,
   },
   secret: { seed: randomInt(2 ** 31), vault: null, undo: [], ship: null },
@@ -90,30 +102,68 @@ export const isGameAction = (action) => {
       return true;
     case 'mission:start':
       return typeof action.missionId === 'string' && action.missionId.length <= 20;
-    case 'role:confirm':
-      return isRoleId(action.role) && typeof action.value === 'boolean';
     default:
-      return isEconomyAction(action) || isBuildAction(action) || isFlightAction(action);
+      return isEconomyAction(action) || isBuildAction(action) || isFlightAction(action) || isWorldAction(action);
   }
+};
+
+/**
+ * Deja el estado coherente después de cualquier cambio: quién está listo, y qué pasa con lo que
+ * los tripulantes llevaban en las manos cuando cambia la etapa, el tramo o el mapa.
+ */
+const settle = (previous, merged) => {
+  const stageId = getMission(merged.missionId)?.stages[merged.stageIndex]?.id;
+  if (merged.scene === 'mission' && stageId) merged.confirmed = rolesReady(merged, stageId);
+  const moved = merged.stageIndex !== previous.stageIndex
+    || merged.flight?.legIndex !== previous.flight?.legIndex
+    || mapIdFor(merged) !== mapIdFor(previous);
+  if (moved) {
+    merged.carrying = {};
+    merged.jobs = {};
+  } else if (merged.flight?.phase !== 'emergency' && Object.values(merged.carrying ?? {}).some((held) => held.id === 'spare')) {
+    // Se terminó la emergencia: el repuesto que alguien llevaba ya no hace falta.
+    merged.carrying = Object.fromEntries(Object.entries(merged.carrying).filter(([, held]) => held.id !== 'spare'));
+  }
+  return merged;
 };
 
 /**
  * Estado actual + acción → `{ state }` con el nuevo estado, o `{ error }` con el motivo del rechazo.
  * No toques sockets aquí: solo datos.
- * @param {{ id: string, name: string, role: string | null, isHost: boolean, canActAs: (roleId: string) => boolean }} actor
+ * `heldRoles` = roles que tienen un tripulante conectado (si falta, se asume que están los cuatro).
+ * @param {{ id: string, name: string, role: string | null, isHost: boolean, canActAs: (roleId: string) => boolean, heldRoles?: string[] }} actor
  */
 export const applyAction = (state, action, actor) => {
   const { data } = state;
-  /** @param {object} next  @param {string | string[] | null} [logText]  @param {object} [secretNext] */
+  /** @param {object} next  @param {string | (string | null)[] | null} [logText]  @param {object} [secretNext] */
   const commit = (next, logText, secretNext) => {
     const merged = { ...data, ...next };
     const lines = (Array.isArray(logText) ? logText : [logText]).filter(Boolean);
     if (lines.length > 0) merged.log = [...data.log, ...lines].slice(-LOG_LIMIT);
-    return { state: { ...state, version: state.version + 1, data: merged, secret: { ...state.secret, ...secretNext } } };
+    return { state: { ...state, version: state.version + 1, data: settle(data, merged), secret: { ...state.secret, ...secretNext } } };
   };
   const hostOnly = (what) => (actor.isHost ? null : { error: `Solo el anfitrión ${what}.` });
   const story = getStory(data.scene, data.missionId);
-  const stages = getMission(data.missionId)?.stages ?? [];
+  const mission = getMission(data.missionId);
+  const stages = mission?.stages ?? [];
+
+  /** Lo que cambia después de una acción de vuelo: el vuelo, el dinero y, si corresponde, la etapa. */
+  const afterFlight = (base, flown) => {
+    const next = { flight: flown.flight, economy: { ...base.economy, credits: flown.credits } };
+    const logs = [...flown.logs];
+    const result = flown.flight.result;
+    if (result && !base.flight.result) {
+      // Fin del vuelo: la misión pasa a la Evaluación. Si salió bien, se desbloquea la siguiente.
+      next.stageIndex = stages.findIndex((stage) => stage.id === 'debrief');
+      if (result.ok) next.campaign = completeMission(base.campaign, base.missionId);
+    } else if (flown.flight.phase === 'stageDone') {
+      // Terminaron los tramos de esta parte del viaje: la etapa cambia sola.
+      next.stageIndex = base.stageIndex + 1;
+      next.flight = { ...flown.flight, phase: 'ready' };
+      logs.push(`Empieza la etapa: ${stages[next.stageIndex].name}.`);
+    }
+    return { next, logs };
+  };
 
   switch (action.type) {
     // ---------- Historia: prólogo e informes ----------
@@ -133,7 +183,7 @@ export const applyAction = (state, action, actor) => {
           'La tripulación conoce la leyenda del Prisma.',
         );
       }
-      return commit({ scene: 'mission', page: 0, read: {} }, `Empieza la misión: ${getMission(data.missionId).title}.`);
+      return commit({ scene: 'mission', page: 0, read: {} }, `Empieza la misión: ${mission.title}.`);
     }
     case 'story:back': {
       if (!story) return { error: 'Ahora no hay nada que leer.' };
@@ -150,7 +200,7 @@ export const applyAction = (state, action, actor) => {
       if (data.scene === 'prologue') {
         return commit({ scene: 'select', page: 0, read: {}, campaign: { ...data.campaign, prologueSeen: true } }, `${actor.name} saltó el prólogo.`);
       }
-      return commit({ scene: 'mission', page: 0, read: {} }, `${actor.name} saltó el informe. Empieza la misión: ${getMission(data.missionId).title}.`);
+      return commit({ scene: 'mission', page: 0, read: {} }, `${actor.name} saltó el informe. Empieza la misión: ${mission.title}.`);
     }
     case 'story:replay': {
       const refusal = hostOnly('puede volver a mostrar el prólogo');
@@ -164,71 +214,58 @@ export const applyAction = (state, action, actor) => {
       const refusal = hostOnly('inicia la misión');
       if (refusal) return refusal;
       if (data.scene !== 'select') return { error: 'La misión se elige desde la constelación.' };
-      const mission = getMission(action.missionId);
-      if (!mission) return { error: 'Esa misión no existe.' };
-      const status = data.campaign.missions[mission.id];
-      if (status === 'locked') return { error: `${mission.title} sigue bloqueada: primero hay que completar la misión anterior.` };
-      if (mission.stages.length === 0) return { error: `${mission.title} todavía no está construida.` };
-      const { economy, vault } = openEconomy(mission, state.secret.seed);
+      const chosen = getMission(action.missionId);
+      if (!chosen) return { error: 'Esa misión no existe.' };
+      const status = data.campaign.missions[chosen.id];
+      if (status === 'locked') return { error: `${chosen.title} sigue bloqueada: primero hay que completar la misión anterior.` };
+      if (chosen.stages.length === 0) return { error: `${chosen.title} todavía no está construida.` };
+      const { economy, vault } = openEconomy(chosen, state.secret.seed);
       return commit({
         economy,
         rocket: emptyRocket(),
         flight: null,
         undoSteps: 0,
+        ...freshWorld(),
         scene: 'briefing',
         page: 0,
         read: {},
-        missionId: mission.id,
+        missionId: chosen.id,
         stageIndex: 0,
         confirmed: nobodyConfirmed(),
         campaign: {
           ...data.campaign,
-          missions: { ...data.campaign.missions, [mission.id]: status === 'completed' ? status : 'in_progress' },
+          missions: { ...data.campaign.missions, [chosen.id]: status === 'completed' ? status : 'in_progress' },
         },
-      }, `${actor.name} eligió la misión ${mission.title}.`, { vault, undo: [], ship: null });
+      }, `${actor.name} eligió la misión ${chosen.title}.`, { vault, undo: [], ship: null });
     }
 
-    // ---------- Mesa de misión ----------
-    case 'role:confirm': {
-      if (data.scene !== 'mission') return { error: 'La misión todavía no empezó.' };
-      if (!actor.canActAs(action.role)) return { error: `${roleName(action.role)} le toca a otro tripulante.` };
-      if (data.confirmed[action.role] === action.value) return { error: 'Eso ya estaba marcado.' };
-      return commit(
-        { confirmed: { ...data.confirmed, [action.role]: action.value } },
-        `${actor.name} ${action.value ? 'dio' : 'retiró'} el visto bueno de ${roleName(action.role)}.`,
-      );
-    }
+    // ---------- La palanca de etapa y el despegue ----------
     case 'stage:advance': {
       if (data.scene !== 'mission') return { error: 'La misión todavía no empezó.' };
-      const refusal = hostOnly('pasa a la siguiente etapa');
-      if (refusal) return refusal;
-      const missing = ROLES.filter((role) => !data.confirmed[role.id]).map((role) => role.name);
-      if (missing.length > 0) return { error: `Falta el visto bueno de: ${missing.join(', ')}.` };
       if (data.stageIndex >= stages.length - 1) return { error: 'Esta es la última etapa.' };
-      const next = stages[data.stageIndex + 1];
-      const moveOn = { stageIndex: data.stageIndex + 1, confirmed: nobodyConfirmed() };
-      const current = stages[data.stageIndex].id;
-
-      // Durante el viaje, se pasa de etapa cuando terminan sus tramos.
-      if (FLIGHT_STAGES.includes(current)) {
-        const flight = data.flight;
-        if (!flight || !['stageDone', 'over'].includes(flight.phase)) return { error: 'Todavía quedan tramos de esta parte del viaje.' };
-        return commit({ ...moveOn, flight: { ...flight, phase: flight.phase === 'over' ? 'over' : 'ready' } }, `Empieza la etapa: ${next.name}.`);
+      const current = stages[data.stageIndex];
+      if (FLIGHT_STAGES.includes(current.id)) return { error: 'Durante el viaje la etapa cambia sola, cuando terminan sus tramos.' };
+      const missing = missingTasks(data, current.id, actor.heldRoles);
+      if (missing.length > 0) {
+        const more = missing.length > 1 ? ` (y ${missing.length - 1} más)` : '';
+        return { error: `Falta una tarea de ${roleName(missing[0].role)}: ${missing[0].title.toLowerCase()}${more}.` };
       }
+      const next = stages[data.stageIndex + 1];
+      const moveOn = { stageIndex: data.stageIndex + 1 };
 
-      // Al salir de Validación se despega: el cohete tiene que pasar la revisión y se paga el combustible.
-      if (stages[data.stageIndex].id === 'validation') {
+      // Al salir de Validación se despega: lo da Vuelo, el cohete tiene que pasar la revisión y se paga el combustible.
+      if (current.id === 'validation') {
+        if (!actor.canActAs('pilot')) return { error: 'El despegue lo da Vuelo, desde la plataforma de lanzamiento.' };
         const physical = toPhysicsStages(data.rocket, data.economy.inventory);
-        const review = validateRocket(physical, getMission(data.missionId), { credits: data.economy.credits });
+        const review = validateRocket(physical, mission, { credits: data.economy.credits });
         if (review.critical.length > 0) {
           const more = review.critical.length > 1 ? ` Hay ${review.critical.length - 1} problema(s) más.` : '';
           return { error: `No se puede despegar. ${review.critical[0].text}${more}` };
         }
         const fuel = propellantCost(physical);
-        const mission = getMission(data.missionId);
         const { flight, ship } = startFlight({
           rocket: data.rocket, inventory: data.economy.inventory, vaultItems: state.secret.vault.items,
-          legs: mission.flightPlan, seed: state.secret.seed,
+          legs: mission.flightPlan, seed: state.secret.seed, perks: data.perks,
         });
         return commit(
           { ...moveOn, flight, economy: { ...data.economy, credits: data.economy.credits - fuel } },
@@ -239,25 +276,35 @@ export const applyAction = (state, action, actor) => {
       return commit(moveOn, `Empieza la etapa: ${next.name}.`);
     }
     default: {
-      // ---------- Mercado, mercado negro y bodega (server/economy.js) ----------
       if (data.scene !== 'mission') return { error: 'La misión todavía no empezó.' };
       const stageId = stages[data.stageIndex]?.id;
+      const flightContext = (base) => ({
+        flight: base.flight, ship: state.secret.ship, legs: mission.flightPlan, credits: base.economy.credits, stageId,
+      });
 
       // ---------- Vuelo (server/flight.js) ----------
       if (isFlightAction(action)) {
-        const mission = getMission(data.missionId);
-        const flown = applyFlightAction({
-          flight: data.flight, ship: state.secret.ship, legs: mission.flightPlan, credits: data.economy.credits, stageId,
-        }, action, actor);
+        const flown = applyFlightAction(flightContext(data), action, actor);
         if (flown.error) return { error: flown.error };
-        const next = { flight: flown.flight, economy: { ...data.economy, credits: flown.credits } };
-        const result = flown.flight.result;
-        if (result && !data.flight.result) {
-          // Fin del vuelo. Si falló, la misión salta a la Evaluación; si salió bien, se desbloquea la siguiente.
-          if (!result.ok) Object.assign(next, { stageIndex: stages.findIndex((s) => s.id === 'debrief'), confirmed: nobodyConfirmed() });
-          else next.campaign = completeMission(data.campaign, data.missionId);
+        const { next, logs } = afterFlight(data, flown);
+        // Comercio entregó el repuesto en la avería: ya no lo lleva en las manos.
+        if (action.type === 'flight:resolve' && data.carrying?.[actor.id]?.id === 'spare') {
+          next.carrying = Object.fromEntries(Object.entries(data.carrying).filter(([id]) => id !== actor.id));
         }
-        return commit(next, flown.logs, { ship: flown.ship });
+        return commit(next, logs, { ship: flown.ship });
+      }
+
+      // ---------- Tareas y lo que se lleva en las manos (server/world.js) ----------
+      if (isWorldAction(action)) {
+        const done = applyWorldAction({ data, stageId }, action, actor);
+        if (done.error) return { error: done.error };
+        if (!done.then) return commit(done.patch, done.log);
+        // La tarea dispara algo en el vuelo: el Prisma llegó a la nave, o la carga quedó asegurada.
+        const base = { ...data, ...done.patch };
+        const flown = applyFlightAction(flightContext(base), done.then, { ...actor, canActAs: () => true });
+        if (flown.error) return { error: flown.error };
+        const { next, logs } = afterFlight(base, flown);
+        return commit({ ...done.patch, ...next }, [done.log, ...logs], { ship: flown.ship });
       }
 
       // ---------- Constructor (server/build.js) ----------
@@ -274,6 +321,7 @@ export const applyAction = (state, action, actor) => {
         return commit({ rocket: built.rocket, undoSteps: history.length }, built.log, { undo: history });
       }
 
+      // ---------- Mercado, mercado negro y bodega (server/economy.js) ----------
       if (!isEconomyAction(action)) return { error: 'Acción desconocida.' };
       if (action.type === 'market:sell' && data.rocket && installedUids(data.rocket).includes(action.uid)) {
         return { error: 'Esa pieza está puesta en el cohete: primero hay que quitarla.' };
@@ -303,6 +351,7 @@ export const registerGameHandlers = (io, socket, store) => {
       role: player.role,
       isHost: room.hostId === player.id,
       canActAs: (roleId) => canActAs(players, player.id, roleId),
+      heldRoles: ROLES.filter((role) => roleHolder(players, role.id)).map((role) => role.id),
     });
     if (result.error) return socket.emit(EVENTS.STATE_REJECTED, { message: result.error });
 

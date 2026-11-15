@@ -7,6 +7,7 @@ import { io as connect } from 'socket.io-client';
 import { getMission } from '../js/missions.js';
 import { EVENTS, LOBBY_MAP, MAX_PLAYERS, ROLES } from '../js/shared.js';
 import { BRIEFINGS, PROLOGUE } from '../js/story.js';
+import { MINIGAMES, isTaskDone, stageTasks, taskProgress } from '../js/tasks.js';
 import { drawRoles } from '../server/rooms.js';
 import { createGameServer } from '../server/server.js';
 
@@ -223,32 +224,49 @@ const run = async () => {
   check(`después de las ${BRIEFINGS.moon.pages.length} páginas del informe empieza la mesa de misión en la etapa 1`,
     atDesk.data.scene === 'mission' && atDesk.data.missionId === 'moon' && atDesk.data.stageIndex === 0);
 
-  console.log('\n7b) Durante la misión: cada rol hace lo suyo');
+  console.log('\n7b) Durante la misión: cada rol hace lo suyo, con las manos');
   const base = room().state.version;
   const crew = [[host, 'pilot'], [p2, 'merchant'], [p3, 'engineer'], [p5, 'scientist']];
   const refused = waitFor(p2, EVENTS.STATE_REJECTED);
-  p2.emit(EVENTS.STATE_ACTION, { type: 'role:confirm', role: 'pilot', value: true });
-  check(`nadie puede actuar con el rol de otro ("${(await refused).message}")`, room().state.version === base);
+  p2.emit(EVENTS.STATE_ACTION, { type: 'task:done', id: 'briefing.window' });
+  check(`nadie puede hacer la tarea de otro rol ("${(await refused).message}")`, room().state.version === base);
   const early = waitFor(host, EVENTS.STATE_REJECTED);
   host.emit(EVENTS.STATE_ACTION, { type: 'stage:advance' });
-  check(`no se avanza sin el visto bueno de los 4 roles ("${(await early).message}")`, room().state.data.stageIndex === 0);
+  check(`la palanca de etapa no baja con tareas pendientes ("${(await early).message}")`, room().state.data.stageIndex === 0);
   const unknown = waitFor(p2, EVENTS.STATE_REJECTED);
   p2.emit(EVENTS.STATE_ACTION, { type: 'set', key: 'stageIndex', value: 8 });
   await unknown;
   check('una acción inventada se rechaza', room().state.version === base);
+  check('el "visto bueno" con un clic ya no existe', Boolean((await act(p2, { type: 'role:confirm', role: 'merchant', value: true })).error) && room().state.version === base);
 
+  // Cuatro tripulantes trabajando a la vez: tres terminan su minijuego y Comercio levanta la ficha.
   const states = crew.map(([c]) => waitFor(c, EVENTS.STATE_SYNC, (s) => s.version === base + 4));
-  crew.forEach(([c, role]) => c.emit(EVENTS.STATE_ACTION, { type: 'role:confirm', role, value: true }));
-  check('4 vistos buenos al mismo tiempo → los 4 quedan marcados en todos',
-    (await Promise.all(states)).every((s) => ROLES.every((r) => s.data.confirmed[r.id])));
-  const notHost = waitFor(p3, EVENTS.STATE_REJECTED);
-  p3.emit(EVENTS.STATE_ACTION, { type: 'stage:advance' });
-  await notHost;
-  check('solo el anfitrión avanza de etapa', room().state.data.stageIndex === 0);
+  host.emit(EVENTS.STATE_ACTION, { type: 'task:done', id: 'briefing.window' });
+  p3.emit(EVENTS.STATE_ACTION, { type: 'task:done', id: 'briefing.power' });
+  p5.emit(EVENTS.STATE_ACTION, { type: 'task:done', id: 'briefing.scope' });
+  p2.emit(EVENTS.STATE_ACTION, { type: 'carry:pick', id: 'briefing.budget' });
+  check('4 tripulantes trabajando al mismo tiempo → todos ven las 3 tareas hechas y a Comercio con la ficha en las manos',
+    (await Promise.all(states)).every((s) => ['briefing.window', 'briefing.power', 'briefing.scope'].every((id) => s.data.tasks[id]?.done)
+      && s.data.carrying[idOf(p2)]?.item === 'chip' && s.data.confirmed.pilot && !s.data.confirmed.merchant));
+  check('el telescopio deja una ventaja real para el vuelo', room().state.data.perks.zone === true);
+  check('con las manos ocupadas no se levanta otra cosa', Boolean((await act(p2, { type: 'carry:pick', id: 'briefing.budget' })).error));
+  const fundsBefore = room().state.data.economy.credits;
+  const delivered = await act(p2, { type: 'carry:drop', id: 'briefing.budget' }, (s) => Boolean(s.data.tasks['briefing.budget']?.done));
+  check('al entregar la ficha la tarea queda hecha, suma el adelanto y los 4 roles quedan listos',
+    delivered.state?.data.economy.credits === fundsBefore + 300 && ROLES.every((r) => delivered.state.data.confirmed[r.id]) && !delivered.state.data.carrying[idOf(p2)]);
+
+  const walked = waitFor(host, EVENTS.PLAYER_MOVED, (m) => m.id === idOf(p2));
+  p2.emit(EVENTS.PLAYER_MOVE, { x: 300, y: 800, facing: 1, moving: true, map: 'station', act: 'busy' });
+  const step = await walked;
+  check('en la misión todos ven caminar a los demás por la estación, y qué están haciendo', step.map === 'station' && step.x === 300 && step.y === 800 && step.act === 'busy');
+  p2.emit(EVENTS.PLAYER_MOVE, { x: 900, y: 500, facing: 1, moving: true, map: 'moon' });
+  await pause(80);
+  check('un paso que venía de otro mapa se ignora', seatOf(p2).x === 300 && seatOf(p2).map === 'station');
+
   const advanced = waitFor(p5, EVENTS.STATE_SYNC, (s) => s.data.stageIndex === 1);
-  host.emit(EVENTS.STATE_ACTION, { type: 'stage:advance' });
+  p3.emit(EVENTS.STATE_ACTION, { type: 'stage:advance' });
   const stageTwo = await advanced;
-  check(`el anfitrión avanza a "${getMission('moon').stages[1].name}" y los vistos buenos se reinician`,
+  check(`con las tareas hechas, cualquiera baja la palanca: empieza "${getMission('moon').stages[1].name}" con tareas nuevas`,
     ROLES.every((r) => stageTwo.data.confirmed[r.id] === false));
 
   console.log('\n8) Reconexión en plena misión');
@@ -258,9 +276,9 @@ const run = async () => {
   check('si alguien pierde la conexión, su lugar y su rol quedan guardados',
     players().length === 4 && seatOf(p3).connected === false && seatOf(p3).role === 'engineer');
   const covered = waitFor(host, EVENTS.STATE_SYNC, (s) => s.data.confirmed.engineer);
-  p2.emit(EVENTS.STATE_ACTION, { type: 'role:confirm', role: 'engineer', value: true });
+  p2.emit(EVENTS.STATE_ACTION, { type: 'task:done', id: 'planning.crane' });
   await covered;
-  check('mientras tanto, otro tripulante puede cubrir ese rol', room().state.data.confirmed.engineer === true);
+  check('mientras tanto, otro tripulante puede cubrir ese rol (hace su tarea)', room().state.data.tasks['planning.crane']?.by === 'Jugador 2');
 
   const late = await connectClient('c6');
   const lateJoin = await join(late, code, 'Tarde');
@@ -274,9 +292,9 @@ const run = async () => {
   check('quien vuelve con su llave recupera su lugar, su rol y el estado de la misión',
     rejoin.ok && rejoin.data.me.id === p3Seat.id && rejoin.data.me.role === 'engineer' && rejoin.data.state.data.stageIndex === 1);
   const stolen = waitFor(p2, EVENTS.STATE_REJECTED);
-  p2.emit(EVENTS.STATE_ACTION, { type: 'role:confirm', role: 'engineer', value: false });
+  p2.emit(EVENTS.STATE_ACTION, { type: 'build:addStage' });
   await stolen;
-  check('y su rol vuelve a ser solo suyo', room().state.data.confirmed.engineer === true);
+  check('y su rol vuelve a ser solo suyo', room().state.data.rocket.stages.length === 1);
 
   const p5Away = waitFor(host, EVENTS.PLAYER_LEFT, (n) => n.reason === 'away');
   p5.disconnect();
@@ -295,24 +313,43 @@ const run = async () => {
 
   console.log('\n8b) Mercado: el dinero es de todos y lo maneja Comercio');
   const economy = () => room().state.data.economy;
-  check('la misión abre con su presupuesto completo', economy().credits === getMission('moon').budget && economy().inventory.length === 0);
+  check('la misión abre con su presupuesto (más el adelanto que negoció Comercio)', economy().credits === getMission('moon').budget + 300 && economy().inventory.length === 0);
+  /** Cada tripulante hace las tareas de su rol en la etapa (lo mismo que manda el navegador al terminarlas). */
+  const doTasks = async (stageId) => {
+    const byRole = { pilot: host, merchant: p2, engineer: p3Back, scientist: p5Back };
+    for (const task of stageTasks(stageId)) {
+      if (isTaskDone(room().state.data, task)) continue;
+      const client = byRole[task.role];
+      if (task.kind === 'carry') {
+        for (let done = taskProgress(room().state.data, task); done < task.count; done++) {
+          await act(client, { type: 'carry:pick', id: task.id }, (s) => Boolean(s.data.carrying[idOf(client)]));
+          await act(client, { type: 'carry:drop', id: task.id }, (s) => !s.data.carrying[idOf(client)]);
+        }
+      } else if (MINIGAMES.includes(task.kind) && !task.send) {
+        await act(client, { type: 'task:done', id: task.id }, (s) => Boolean(s.data.tasks[task.id]?.done));
+      }
+    }
+  };
   const closed = await act(p2, { type: 'market:buy', offerId: 'capsule:common' });
   check(`antes de la etapa Mercado no se compra ("${closed.error}")`, Boolean(closed.error));
-  for (const [client, role] of [[host, 'pilot'], [p2, 'merchant'], [p5Back, 'scientist']]) {
-    await act(client, { type: 'role:confirm', role, value: true }, (s) => s.data.confirmed[role]);
-  }
+  await doTasks('planning');
+  check('cargar entre varios cuenta de a una: las 3 cajas quedaron en la báscula', room().state.data.tasks['planning.stock']?.progress === 3);
   const atMarket = await act(host, { type: 'stage:advance' }, (s) => s.data.stageIndex === 2);
-  check('con los 4 vistos buenos, el anfitrión abre la etapa Mercado', getMission('moon').stages[atMarket.state?.data.stageIndex]?.id === 'market');
+  check('con las tareas de los 4 roles hechas, la palanca abre la etapa Mercado', getMission('moon').stages[atMarket.state?.data.stageIndex]?.id === 'market');
+  const notHis = await act(p2, { type: 'task:done', id: 'market.bench' });
+  check(`cada tarea es de su rol ("${notHis.error}")`, Boolean(notHis.error));
   const notMerchant = await act(p3Back, { type: 'market:buy', offerId: 'capsule:common' });
   check(`Ingeniería no puede comprar ("${notMerchant.error}")`, Boolean(notMerchant.error) && economy().inventory.length === 0);
   const request = await act(p3Back, { type: 'market:request', offerId: 'capsule:common' }, (s) => 'capsule:common' in s.data.economy.requests);
   check('pero sí puede pedirle una pieza a Comercio', request.state?.data.economy.requests['capsule:common']?.[0].role === 'engineer');
   const capsulePrice = economy().offers.find((o) => o.id === 'capsule:common').price;
+  const funds = economy().credits;
   const seenByAll = [host, p3Back, p5Back].map((c) => waitFor(c, EVENTS.STATE_SYNC, (s) => s.data.economy.inventory.length === 2));
   p2.emit(EVENTS.STATE_ACTION, { type: 'market:buy', offerId: 'capsule:common', quantity: 2 });
   const afterBuy = await Promise.all(seenByAll);
   check('Comercio compra y todos ven el mismo dinero y la misma bodega',
-    afterBuy.every((s) => s.data.economy.credits === getMission('moon').budget - 2 * capsulePrice && s.data.economy.inventory.length === 2));
+    afterBuy.every((s) => s.data.economy.credits === funds - 2 * capsulePrice && s.data.economy.inventory.length === 2));
+  check('comprar cumple la tarea de Comercio en el Mercado (se hace en su terminal)', room().state.data.confirmed.merchant === true);
   check('lo que solo sabe el servidor (la verdad del mercado negro) no viaja',
     afterBuy.every((s) => !('secret' in s) && !JSON.stringify(s).includes('delivers') && !JSON.stringify(s).includes('"truth"'))
     && Object.keys(room().state.secret.vault.truth).length === economy().black.length);
@@ -368,11 +405,12 @@ const run = async () => {
   await readToEnd(solo, 'prologue');
   await act(solo, { type: 'mission:start', missionId: 'moon' });
   await readToEnd(solo, 'briefing');
-  const soloDone = waitFor(solo, EVENTS.STATE_SYNC, (s) => s.data.stageIndex === 1);
-  ROLES.forEach((role) => solo.emit(EVENTS.STATE_ACTION, { type: 'role:confirm', role: role.id, value: true }));
-  solo.emit(EVENTS.STATE_ACTION, { type: 'stage:advance' });
-  await soloDone;
-  check('los roles sin dueño los maneja quien esté', server.store.get(soloCode).state.data.stageIndex === 1);
+  check('sola, tampoco baja la palanca sin hacer la tarea de su rol', Boolean((await act(solo, { type: 'stage:advance' })).error));
+  const freeRole = await act(solo, { type: 'task:done', id: 'briefing.power' }, (s) => Boolean(s.data.tasks['briefing.power']?.done));
+  check('las tareas de los roles sin dueño las puede hacer quien esté', freeRole.state?.data.confirmed.engineer === true);
+  await act(solo, { type: 'task:done', id: 'briefing.window' }, (s) => Boolean(s.data.tasks['briefing.window']?.done));
+  const soloDone = await act(solo, { type: 'stage:advance' }, (s) => s.data.stageIndex === 1);
+  check('y los puestos libres no la frenan: con su tarea hecha, pasa de etapa', soloDone.state?.data.stageIndex === 1 && server.store.get(soloCode).state.data.stageIndex === 1);
 
   const soloLobby = waitFor(solo, EVENTS.ROOM_UPDATE, (r) => r.phase === 'lobby');
   solo.emit(EVENTS.GAME_END);

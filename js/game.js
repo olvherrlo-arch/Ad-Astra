@@ -5,7 +5,7 @@
  *
  *   prologue, briefing → js/narrative.js      la historia, página por página
  *   select             → js/constellation.js  la constelación para elegir misión
- *   mission            → js/desk.js           la mesa de misión
+ *   mission            → js/world.js          el mundo: la estación, la nave y la Luna, caminando
  *
  * - El estado siempre viene del servidor:  session.state  y  on('state', ...).
  * - Lo que hace el jugador se manda con  sendAction({ type: '...' }).
@@ -14,7 +14,7 @@
  */
 import { endGame, isHost, on, session } from './connection.js';
 import { mountConstellation } from './constellation.js';
-import { mountDesk } from './desk.js';
+import { mountWorld } from './world.js';
 import { getMission } from './missions.js';
 import { mountNarrative } from './narrative.js';
 import { PROLOGUE } from './story.js';
@@ -24,7 +24,7 @@ import { playCinematic } from './cinematic.js';
 const TOAST_MS = 3_500;
 
 /** Qué pantalla arma cada escena. Prólogo e informe comparten pantalla. */
-const VIEWS = { prologue: mountNarrative, briefing: mountNarrative, select: mountConstellation, mission: mountDesk };
+const VIEWS = { prologue: mountNarrative, briefing: mountNarrative, select: mountConstellation, mission: mountWorld };
 
 const GAME_HTML = `
 <div class="mission">
@@ -64,6 +64,8 @@ export const mountGame = (container) => {
     const data = session.state?.data;
     if (!data) return;
 
+    // En la misión el mundo ocupa toda la pantalla; en las demás escenas, la página de siempre.
+    container.querySelector('.mission').classList.toggle('is-world', data.scene === 'mission');
     const [kicker, title] = titleFor(data);
     $('.mission-title span').textContent = kicker;
     $('.mission-title strong').textContent = title;

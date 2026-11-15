@@ -190,6 +190,7 @@ const seat = (room, { socketId, clientId, name, color, hat }) => {
     x: Math.round(LOBBY_MAP.spawn.x + Math.cos(angle) * 40),
     y: Math.round(LOBBY_MAP.spawn.y + Math.sin(angle) * 24),
     facing: 1,
+    map: null, //                      mapa de la misión en el que está parado (null en el lobby)
     role: null,
     ready: false,
     connected: true,
@@ -199,8 +200,8 @@ const seat = (room, { socketId, clientId, name, color, hat }) => {
 };
 
 /** Lo que ven los demás de un jugador (sin su clientId, su conexión ni su seatToken). */
-export const publicPlayer = ({ id, name, color, hat, x, y, facing, role, ready, connected }) =>
-  ({ id, name, color, hat, x, y, facing, role, ready, connected });
+export const publicPlayer = ({ id, name, color, hat, x, y, facing, map, role, ready, connected }) =>
+  ({ id, name, color, hat, x, y, facing, map, role, ready, connected });
 
 /** Versión de la sala que se envía a los navegadores. */
 export const toSnapshot = (room) => ({
@@ -309,9 +310,12 @@ const holdSeat = (io, socket, store, room, player) => {
 /** Al volver al lobby se van los lugares sin conexión, los roles se borran (se sortean de nuevo) y todos vuelven a marcar Listo. */
 export const returnToLobby = (io, store, room) => {
   room.phase = 'lobby';
-  for (const player of [...room.players.values()]) {
+  for (const [index, player] of [...room.players.values()].entries()) {
     player.ready = false;
     player.role = null;
+    // Vuelven de la misión: aparecen otra vez en la alfombra de la sala de embarque.
+    const angle = (index / MAX_PLAYERS) * Math.PI * 2;
+    Object.assign(player, { x: Math.round(LOBBY_MAP.spawn.x + Math.cos(angle) * 40), y: Math.round(LOBBY_MAP.spawn.y + Math.sin(angle) * 24), map: null });
     if (player.connected) continue;
     room.players.delete(player.id);
     io.to(room.code).emit(EVENTS.PLAYER_LEFT, { player: publicPlayer(player), reason: 'disconnected' });

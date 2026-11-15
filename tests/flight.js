@@ -9,7 +9,8 @@ import { EXAMPLE_BLUEPRINTS } from '../js/blueprints.js';
 import { getPart } from '../js/catalog.js';
 import { getMission } from '../js/missions.js';
 import { applyAction, createInitialState, isGameAction, publicState } from '../server/game.js';
-import { GUIDANCE } from '../server/flight.js';
+import { BONUS, GUIDANCE } from '../server/flight.js';
+import { doStageTasks } from './helpers.js';
 
 let failures = 0;
 let checks = 0;
@@ -42,7 +43,7 @@ const newGame = (seed, { extra = [], tweak = null } = {}) => {
   game.ship = () => game.state.secret.ship;
   game.stage = () => getMission('moon').stages[game.data().stageIndex].id;
   game.next = () => {
-    for (const member of crew) game.send(member, { type: 'role:confirm', role: member.role, value: true });
+    doStageTasks(game.send, game.data, game.stage(), (role) => crew.find((member) => member.role === role));
     return game.send(ana, { type: 'stage:advance' });
   };
   while (game.data().scene === 'prologue') game.send(ana, { type: 'story:next' });
@@ -66,7 +67,11 @@ const newGame = (seed, { extra = [], tweak = null } = {}) => {
   return game;
 };
 
-/** Pilotea con cuidado: apunta justo a lo que falta y corrige; resuelve emergencias reparando si alcanza. */
+/**
+ * Pilotea con cuidado: apunta justo a lo que falta y corrige; resuelve emergencias reparando si alcanza.
+ * En la Luna, Ciencia escanea justo donde está el Prisma (la prueba conoce el secreto del servidor),
+ * Ingeniería perfora y Comercio lo carga.
+ */
 const fly = (game, { overshoot = 0, maxSteps = 200, onEmergency = null } = {}) => {
   for (let step = 0; step < maxSteps; step++) {
     const flight = game.data().flight;
@@ -78,11 +83,12 @@ const fly = (game, { overshoot = 0, maxSteps = 200, onEmergency = null } = {}) =
       for (const role of pick.needs) game.send(crew.find((c) => c.role === role), { type: 'flight:resolve', option: pick.id, role });
       continue;
     }
-    if (flight.phase === 'stageDone') { game.next(); continue; }
     const leg = legs[flight.legIndex];
     if (leg.id === 'surface') {
-      if (!flight.prism) game.send(caro, { type: 'flight:scan' });
-      else game.send(ana, { type: 'flight:proceed' });
+      if (flight.prism) game.send(ana, { type: 'flight:proceed' });
+      else if (flight.dug) game.send(meche, { type: 'flight:load' });
+      else if (flight.located) game.send(ines, { type: 'flight:dig' });
+      else game.send(caro, { type: 'flight:scan', ...game.ship().prismSpot });
       continue;
     }
     if (leg.dv === 0) { game.send(ana, { type: 'flight:proceed' }); continue; }
@@ -102,11 +108,12 @@ check('la nave con sus números verdaderos no viaja a los navegadores',
 const start = game.data().flight.telemetry;
 check(`la telemetría muestra masa, Δv y batería (${Math.round(start.mass / 1000)} t, ${Math.round(start.deltaVLeft)} m/s)`,
   start.mass > 2e6 && start.deltaVLeft > 17_000 && start.energy === start.energyCapacity && start.stages.length === 5);
-check(`la precisión depende del equipo: con la computadora básica, error típico ±${(game.data().flight.precision.sigma * 100).toFixed(1)} %`,
-  game.data().flight.precision.sigma === GUIDANCE.basic && game.data().flight.precision.reasons.length >= 1);
+check(`la precisión depende del equipo y del entrenamiento: computadora básica y piloto entrenado, error típico ±${(game.data().flight.precision.sigma * 100).toFixed(1)} %`,
+  game.data().flight.precision.sigma === GUIDANCE.basic * BONUS.sim && game.data().flight.precision.reasons.length >= 2);
 check('solo Vuelo enciende los motores', Boolean(game.send(ines, { type: 'flight:burn', dv: 100 }).error));
-check('solo Ciencia busca el Prisma, y solo en la Luna', Boolean(game.send(ana, { type: 'flight:scan' }).error) && Boolean(game.send(caro, { type: 'flight:scan' }).error));
-check('no se pasa de etapa con tramos pendientes', Boolean(game.next().error) && game.stage() === 'flight');
+check('solo Ciencia busca el Prisma, y solo en la Luna', Boolean(game.send(ana, { type: 'flight:scan', x: 900, y: 500 }).error) && Boolean(game.send(caro, { type: 'flight:scan', x: 900, y: 500 }).error));
+check('durante el viaje nadie pasa de etapa a mano', Boolean(game.next().error) && game.stage() === 'flight');
+check('el lugar del Prisma solo lo sabe el servidor', Boolean(game.ship().prismSpot) && !JSON.stringify(publicState(game.state)).includes('prismSpot'));
 
 console.log('\n2) Encendidos');
 const before = game.data().flight.telemetry;
@@ -121,10 +128,9 @@ check('con encendidos de corrección se termina el tramo', game.data().flight.le
 console.log('\n3) El viaje completo');
 const final = fly(game);
 check(`la nave vuelve con el Prisma ("${final.result?.text}")`, final.result?.ok === true && final.prism === true);
-check('se pasó por las tres partes del viaje', ['flight', 'surface', 'return'].every(() => true) && game.stage() === 'return');
+check('al terminar el viaje la misión pasa sola a la Evaluación', game.stage() === 'debrief');
 check('la misión queda completada y se abre Life on Mars',
   game.data().campaign.missions.moon === 'completed' && game.data().campaign.missions.mars === 'available');
-check('el anfitrión pasa a la Evaluación', !game.next().error && game.stage() === 'debrief');
 check(`quedan registros para la evaluación (${final.burns} encendidos, ${Math.round(final.wasted)} m/s de más)`, final.burns >= 7 && final.dvUsed > 17_000);
 check('ya no se puede encender nada', Boolean(game.send(ana, { type: 'flight:burn', dv: 10 }).error));
 
@@ -140,7 +146,7 @@ check(`pasándose un 5 % en cada encendido, el combustible no alcanza (${sloppy}
 
 console.log('\n5) Emergencias');
 const broken = newGame(7);
-for (const stage of broken.ship().stages) for (const item of stage.items) if (item.kind === 'engine') item.failureRate = 1;
+for (const stage of broken.ship().stages) for (const item of stage.items) if (item.kind === 'engine') item.failureRate = 5;
 broken.send(ana, { type: 'flight:burn', dv: 1_500 });
 const emergency = broken.data().flight.emergency;
 check(`un motor que falla abre una emergencia ("${emergency?.title}")`, broken.data().flight.phase === 'emergency' && emergency.kind === 'engine');
@@ -149,10 +155,10 @@ check('dice de dónde venía la pieza', emergency.text.includes('mercado legal')
 check('con la emergencia abierta no se puede seguir encendiendo', Boolean(broken.send(ana, { type: 'flight:burn', dv: 100 }).error));
 const repair = emergency.options.find((o) => o.id === 'repair');
 check(`reparar pide a Ingeniería y a Comercio, y cuesta ${repair.cost} créditos`, repair.needs.join() === 'engineer,merchant' && repair.cost > 0);
-check('quien no participa en una salida no puede votarla', Boolean(broken.send(caro, { type: 'flight:resolve', option: 'repair', role: 'scientist' }).error));
+check('quien no participa en una salida no puede sumarse', Boolean(broken.send(caro, { type: 'flight:resolve', option: 'repair', role: 'scientist' }).error));
 const credits = broken.data().economy.credits;
 broken.send(ines, { type: 'flight:resolve', option: 'repair', role: 'engineer' });
-check('con un solo voto la emergencia sigue abierta', broken.data().flight.phase === 'emergency');
+check('con una sola parte hecha la emergencia sigue abierta', broken.data().flight.phase === 'emergency');
 broken.send(meche, { type: 'flight:resolve', option: 'repair', role: 'merchant' });
 const fixed = broken.ship().stages.flatMap((s) => s.items).find((i) => i.uid === emergency.uid);
 check('con los dos, se repara: el motor vuelve y se paga el repuesto',
@@ -171,6 +177,7 @@ const shady = newGame(9, {
     g.state.secret.vault.items[engine.uid] = { quality: 0.2, condition: 'used', defect: 50 };
   },
 });
+shady.ship().perks = {}; // sin motores probados en el banco: se ve el defecto tal cual
 const defective = shady.ship().stages[0].items.find((i) => i.source === 'black');
 check('en la nave, la pieza vuela con su verdad: falla mucho más que lo anunciado', defective.failureRate > 0.5);
 shady.send(ana, { type: 'flight:burn', dv: 9_390 });
@@ -198,11 +205,28 @@ const reachSurface = () => {
 };
 reachSurface();
 surface.send(ines, { type: 'flight:power', mode: 'saving' });
-check('en modo ahorro el espectrómetro está apagado: no se puede buscar', Boolean(surface.send(caro, { type: 'flight:scan' }).error));
+const spot = surface.ship().prismSpot;
+check('en modo ahorro el espectrómetro está apagado: no se puede buscar', Boolean(surface.send(caro, { type: 'flight:scan', x: 300, y: 560 }).error));
 surface.send(ines, { type: 'flight:power', mode: 'normal' });
+check('antes de ubicar el Prisma no se puede perforar', Boolean(surface.send(ines, { type: 'flight:dig' }).error));
 const energy = surface.data().flight.telemetry.energy;
-surface.send(caro, { type: 'flight:scan' });
+surface.send(caro, { type: 'flight:scan', x: 300, y: 560 });
+const ping = surface.data().flight.pings.at(-1);
 check('cada búsqueda gasta energía de la batería', surface.data().flight.telemetry.energy < energy || surface.data().flight.phase === 'emergency');
+if (surface.data().flight.phase !== 'emergency') {
+  const real = Math.hypot(300 - spot.x, 560 - spot.y);
+  check(`un escaneo lejos del Prisma da la distancia desde ese punto (midió ${ping?.d} m, eran ${Math.round(real)})`,
+    Boolean(ping) && Math.abs(ping.d - real) < real * 0.2 && surface.data().flight.located === null);
+  surface.send(caro, { type: 'flight:scan', x: spot.x + 30, y: spot.y - 20 });
+  if (surface.data().flight.phase !== 'emergency') {
+    check('escanear cerca lo ubica: aparece el punto donde perforar', surface.data().flight.located?.x === spot.x);
+    check('cargarlo sin perforar no se puede', Boolean(surface.send(meche, { type: 'flight:load' }).error));
+    check('solo Ingeniería perfora', Boolean(surface.send(caro, { type: 'flight:dig' }).error) && !surface.send(ines, { type: 'flight:dig' }).error);
+    const massBefore = surface.data().flight.telemetry.mass;
+    check('con el Prisma a la vista, se carga y suma masa', !surface.send(meche, { type: 'flight:load' }).error
+      && surface.data().flight.prism === true && surface.data().flight.telemetry.mass > massBefore);
+  }
+}
 check('irse sin el Prisma no se puede mientras no falle la búsqueda',
   surface.data().flight.prism || Boolean(surface.send(ana, { type: 'flight:proceed' }).error));
 
@@ -217,7 +241,54 @@ for (let i = 0; i < 100 && legs[relayless.data().flight.legIndex]?.id !== 'desce
 check('sin repetidor, detrás de la Luna no hay señal y los encendidos pierden precisión',
   relayless.data().flight.signal === false && relayless.data().flight.precision.sigma === GUIDANCE.basic * GUIDANCE.noSignal);
 const smart = newGame(13, { extra: ['flight-computer'] });
-check('con la computadora de vuelo avanzada, los encendidos son más precisos', smart.data().flight.precision.sigma === GUIDANCE.advanced);
+check('con la computadora de vuelo avanzada, los encendidos son más precisos', smart.data().flight.precision.sigma === GUIDANCE.advanced * BONUS.sim);
+
+console.log('\n9) Pilotear con las manos y preparar cada encendido');
+const hands = newGame(21);
+const sigma0 = hands.data().flight.precision.sigma;
+check('solo Ciencia fija la posición con las estrellas', Boolean(hands.send(ana, { type: 'flight:prep', kind: 'nav' }).error) && !hands.send(caro, { type: 'flight:prep', kind: 'nav' }).error);
+check('con la posición fijada, el próximo encendido es más preciso', hands.data().flight.precision.sigma < sigma0 && hands.data().flight.prep.nav === true);
+check('no se prepara dos veces lo mismo', Boolean(hands.send(caro, { type: 'flight:prep', kind: 'nav' }).error));
+check('Ingeniería ajusta los motores', !hands.send(ines, { type: 'flight:prep', kind: 'trim' }).error && hands.data().flight.prep.trim === true);
+hands.send(meche, { type: 'carry:pick', id: 'cargo' });
+check('Comercio levanta una caja suelta y todos lo ven', Object.values(hands.data().carrying).some((held) => held.id === 'cargo'));
+hands.send(meche, { type: 'carry:drop', id: 'cargo' });
+check('con una caja sola la carga todavía no está asegurada', hands.data().flight.prep.cargo === false && hands.data().jobs.cargo === 1);
+hands.send(meche, { type: 'carry:pick', id: 'cargo' });
+hands.send(meche, { type: 'carry:drop', id: 'cargo' });
+check('con las dos cajas en los estantes, la carga queda asegurada', hands.data().flight.prep.cargo === true && Object.keys(hands.data().carrying).length === 0);
+hands.send(ana, { type: 'flight:burn', dv: 500, aim: 1 });
+check('los preparativos se gastan en el encendido', Object.values(hands.data().flight.prep).every((done) => done === false));
+const spread = (aim) => {
+  let worst = 0;
+  for (let seed = 1; seed <= 25; seed++) {
+    const trial = newGame(seed);
+    trial.ship().perks = {};
+    trial.send(ana, { type: 'flight:burn', dv: 1_000, ...(aim === null ? {} : { aim }) });
+    if (trial.data().flight.phase !== 'emergency') worst = Math.max(worst, Math.abs(trial.data().flight.progress - 1_000));
+  }
+  return worst;
+};
+const [steady, shaky] = [spread(1), spread(0)];
+check(`apuntar bien achica el error del encendido (peor caso ${steady.toFixed(1)} m/s contra ${shaky.toFixed(1)} apuntando mal)`, steady < shaky);
+
+const lander = newGame(22);
+for (let i = 0; i < 100 && legs[lander.data().flight.legIndex]?.id !== 'descent' && lander.data().flight.phase !== 'over'; i++) fly(lander, { maxSteps: 1 });
+const descent = legs.find((leg) => leg.id === 'descent');
+const wastedBefore = lander.data().flight.wasted;
+lander.send(ana, { type: 'flight:burn', dv: Math.round(descent.dv * 1.04), aim: 0.8, touchdown: 'crash' });
+check('alunizar a mano termina el tramo; lo quemado de más es gasto', lander.data().flight.legIndex > legs.indexOf(descent) && lander.data().flight.wasted > wastedBefore + descent.dv * 0.03);
+check(`estrellarse al alunizar abre una emergencia ("${lander.data().flight.emergency?.title}")`, lander.data().flight.emergency?.kind === 'leak');
+const kitCost = lander.data().flight.emergency.options.find((o) => o.id === 'repair');
+check('con el kit de repuestos a bordo, la primera reparación cuesta la mitad', kitCost.kit === true && kitCost.detail.includes('la mitad'));
+lander.send(meche, { type: 'carry:pick', id: 'spare' });
+check('Comercio saca el repuesto del pañol', lander.data().carrying[meche.id]?.item === 'spare');
+lander.send(meche, { type: 'flight:resolve', option: 'repair', role: 'merchant' });
+check('al entregarlo en la avería ya no lo lleva', !lander.data().carrying[meche.id] && lander.data().flight.phase === 'emergency');
+lander.send(ines, { type: 'flight:resolve', option: 'repair', role: 'engineer' });
+check('e Ingeniería termina la reparación: la misión sigue en la Luna', lander.data().flight.phase === 'ready' && lander.stage() === 'surface');
+check('Vuelo despliega el panel de campo y recarga la batería',
+  Boolean(lander.send(caro, { type: 'flight:solar' }).error) && !lander.send(ana, { type: 'flight:solar' }).error && lander.data().flight.solar === true);
 
 console.log(failures === 0 ? `\nTODO OK ✅ (${checks} verificaciones del vuelo)` : `\n${failures} verificación(es) fallaron ❌`);
 process.exit(failures === 0 ? 0 : 1);

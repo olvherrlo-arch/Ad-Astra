@@ -1620,3 +1620,154 @@ details.part-card.requested { border-color: var(--gold); box-shadow: 3px 3px 0 v
 .stage-3 .reveal-go { display: block; padding: 10px 30px; background: #f3b641; color: #1f2d5c; border: 2px solid #f4ecd9; border-radius: 8px; box-shadow: 3px 3px 0 #ff6b5b; font-family: var(--font-display); font-size: 1.4rem; animation: list-in 0.4s ease-out both; }
 .reveal-skip { margin: 0; font-size: 0.8rem; opacity: 0.6; }
 .stage-3 .reveal-skip { display: none; }
+
+/* ---------- 9. El mundo: la misión se juega caminando (js/world.js) ----------
+   El lienzo ocupa toda la pantalla; encima van las tarjetas de papel del HUD. */
+.mission.is-world { height: 100vh; height: 100dvh; min-height: 0; padding: 0; gap: 0; overflow: hidden; }
+.mission.is-world > * { max-width: none; }
+.mission.is-world .mission-bar { position: relative; z-index: 3; flex: none; padding: 5px 14px; border-width: 0 0 2px; border-radius: 0; box-shadow: none; }
+.mission.is-world .mission-scene { position: relative; min-height: 0; gap: 0; }
+.world { position: absolute; inset: 0; overflow: hidden; background: #16224a; user-select: none; }
+.world-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+
+.world-objectives, .crew-chip, .world-flight, .world-side, .world-buttons button, .world-prompt, .world-carry, .world-toast {
+  background: var(--paper-dots), var(--night);
+  border: 2px solid var(--starlight);
+  border-radius: 8px;
+  box-shadow: var(--print-shadow);
+  color: var(--starlight);
+}
+
+/* Tareas (arriba a la izquierda) */
+.world-objectives { position: absolute; top: 12px; left: 12px; display: grid; gap: 4px; width: min(340px, 44vw); max-height: calc(100% - 96px); padding: 10px 12px 12px; overflow-y: auto; border-left: 9px solid var(--role-ink, var(--gold)); }
+.world-objectives header { display: grid; line-height: 1.1; }
+.world-objectives .kicker, .world-flight .kicker { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--dim); }
+.world-objectives header strong, .world-flight header strong { font-family: var(--font-display); font-weight: 400; font-size: 1.25rem; }
+.world-objectives h3 { margin: 6px 0 0; font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.world-objectives ul { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.world-objectives li { display: grid; grid-template-columns: 20px 1fr; gap: 0 4px; align-items: start; padding: 4px 6px; background: var(--night-deep); border-radius: 5px; font-size: 0.9rem; font-weight: 600; line-height: 1.25; }
+.world-objectives li i { font-style: normal; font-weight: 700; color: var(--coral); }
+.world-objectives li b { grid-column: 2; font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.world-objectives li span { grid-column: 2; }
+.world-objectives li em { grid-column: 2; justify-self: start; padding: 0 6px; border: 1px solid var(--starlight); border-radius: 999px; font-size: 0.66rem; font-style: normal; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.world-objectives li.done { background: transparent; color: var(--dim); font-weight: 500; text-decoration: line-through; text-decoration-color: rgba(31, 45, 92, 0.35); }
+.world-objectives li.done i { color: var(--teal); }
+.world-objectives li.step { background: var(--gold); }
+.world-objectives li.step i { color: var(--starlight); }
+.world-objectives li.alert { background: rgba(255, 107, 91, 0.3); box-shadow: inset 0 0 0 2px var(--alert); }
+.world-objectives .empty { margin: 4px 0 0; font-size: 0.88rem; color: var(--dim); }
+.world-objectives header { cursor: pointer; }
+.world-objectives.collapsed > :not(header) { display: none; }
+
+/* Tripulación (arriba a la derecha) */
+.world-team { position: absolute; top: 12px; right: 12px; display: grid; gap: 6px; width: min(210px, 30vw); }
+.crew-chip { display: grid; grid-template-columns: 14px 1fr; gap: 0 6px; align-items: center; padding: 4px 8px; line-height: 1.15; box-shadow: 2px 2px 0 var(--coral); }
+.crew-chip i { grid-row: span 2; width: 13px; height: 13px; border: 2px solid var(--starlight); border-radius: 50%; }
+.crew-chip strong { font-size: 0.86rem; }
+.crew-chip span { font-size: 0.74rem; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.crew-chip.done { background: #cfe9df; }
+
+/* Vuelo (abajo a la derecha) */
+.world-flight { position: absolute; right: 12px; bottom: 12px; display: grid; gap: 5px; width: min(300px, 40vw); padding: 9px 12px 11px; }
+.world-flight header { display: grid; line-height: 1.1; }
+.world-flight p { margin: 0; font-size: 0.84rem; }
+.world-flight .flight-bar { position: relative; }
+.world-flight .flight-bar u { position: absolute; inset: 0 auto 0 0; display: block; height: 100%; background: rgba(255, 107, 91, 0.55); border-right: 2px solid var(--alert); transition: width 0.1s linear; }
+.world-flight .prep { display: flex; flex-wrap: wrap; gap: 4px; }
+.world-flight .prep span { padding: 0 7px; border: 1.5px dashed var(--dim); border-radius: 999px; font-size: 0.74rem; font-weight: 700; color: var(--dim); }
+.world-flight .prep span.on { background: var(--gold); border: 1.5px solid var(--starlight); color: var(--starlight); }
+.world-flight dl { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; margin: 0; }
+.world-flight dl div { display: flex; justify-content: space-between; gap: 6px; padding: 0 4px; border-left: 4px solid transparent; font-size: 0.8rem; }
+.world-flight dt { color: var(--dim); }
+.world-flight dd { margin: 0; font-weight: 700; }
+.world-flight .tone-good { border-left-color: var(--teal); }
+.world-flight .tone-warn { border-left-color: var(--gold); background: rgba(243, 182, 65, 0.3); }
+.world-flight .tone-bad { border-left-color: var(--alert); background: rgba(217, 71, 58, 0.16); }
+.world-flight .event { padding-left: 6px; border-left: 4px solid var(--dim); color: var(--dim); }
+.world-flight .emergency { padding: 6px 8px; background: rgba(255, 107, 91, 0.28); border: 2px solid var(--alert); border-radius: 6px; animation: world-alarm 1s ease-in-out infinite alternate; }
+.world-flight .emergency strong { display: block; }
+@keyframes world-alarm { to { background: rgba(255, 107, 91, 0.5); } }
+
+/* Cartel de la acción al alcance, lo que se lleva en las manos y los avisos */
+.world-prompt {
+  --hold: 0;
+  position: absolute; left: 50%; bottom: 62px; max-width: min(560px, calc(100% - 24px)); padding: 9px 18px;
+  transform: translateX(-50%);
+  background: linear-gradient(to right, #5cc2b4 calc(var(--hold) * 100%), transparent 0), var(--gold);
+  font-size: 1.02rem; font-weight: 700; text-align: center;
+}
+.world-prompt:hover { filter: brightness(1.05); }
+.world-prompt.blocked { background: var(--paper-dots), var(--night); border-style: dashed; font-size: 0.9rem; font-weight: 600; color: var(--dim); box-shadow: none; }
+.world-carry { position: absolute; left: 50%; bottom: 116px; margin: 0; padding: 3px 12px; transform: translateX(-50%); font-size: 0.84rem; font-weight: 600; box-shadow: 2px 2px 0 var(--teal); white-space: nowrap; }
+.world-toast { position: absolute; left: 50%; top: 58px; z-index: 4; max-width: min(520px, calc(100% - 24px)); margin: 0; padding: 8px 14px; transform: translateX(-50%); border-left: 8px solid var(--gold); font-weight: 600; text-align: center; }
+.world-buttons { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; }
+.world-buttons button { padding: 6px 12px; font-weight: 700; }
+.world-buttons button:hover { background: var(--gold); }
+.world-buttons kbd { margin-left: 4px; font-size: 0.72rem; }
+
+/* Chat y bitácora (paneles que se abren abajo a la izquierda) */
+.world-side { position: absolute; left: 12px; bottom: 58px; z-index: 5; display: flex; flex-direction: column; width: min(340px, calc(100% - 24px)); height: min(420px, calc(100% - 130px)); padding: 10px 12px; user-select: text; }
+.world-side .chat-header h2 { font-family: var(--font-display); font-weight: 400; font-size: 1.2rem; }
+.world-log ol { flex: 1; display: grid; align-content: start; gap: 5px; margin: 8px 0 0; padding: 0; overflow-y: auto; list-style: none; font-size: 0.88rem; color: var(--dim); }
+.world-log li:first-child { color: var(--starlight); font-weight: 600; }
+.world-log ol:empty::after { content: 'Todavía no pasó nada.'; }
+
+/* Pantallas que se abren desde un puesto: mercado, constructor, informe y tablero */
+.world-panel { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: #16224a radial-gradient(rgba(244, 236, 217, 0.1) 1px, transparent 1.4px) 0 0 / 22px 22px; user-select: text; }
+.world-panel-bar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 8px 16px; background: var(--paper-dots), var(--night); border-bottom: 2px solid var(--starlight); }
+.world-panel-bar h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 1.3rem; }
+.world-panel-tabs { display: flex; gap: 6px; }
+.world-panel-tabs [role='tab'] { padding: 5px 16px; background: var(--night); border: 2px solid var(--starlight); border-radius: 999px; box-shadow: 2px 2px 0 var(--coral); font-weight: 700; }
+.world-panel-tabs [role='tab'][aria-selected='true'] { background: var(--gold); box-shadow: 2px 2px 0 var(--starlight); }
+.world-panel-close { margin-left: auto; padding: 6px 14px; background: var(--gold); border: 2px solid var(--starlight); border-radius: 6px; box-shadow: 2px 2px 0 var(--coral); font-weight: 700; }
+.world-panel-close kbd { margin-left: 4px; font-size: 0.72rem; }
+.world-panel-body { flex: 1; min-height: 0; width: 100%; max-width: 1280px; margin-inline: auto; padding: 14px clamp(10px, 2vw, 24px) 24px; overflow-y: auto; }
+.world-panel-body.board { display: grid; align-content: start; gap: 12px; }
+.board-head, .board-role, .board-perks { padding: 12px 16px; background: var(--paper-dots), var(--night); border: 2px solid var(--starlight); border-radius: 8px; box-shadow: var(--print-shadow); }
+.board-head h3 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 1.6rem; }
+.board-head p { margin: 2px 0 0; }
+.board-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.board-role h4, .board-perks h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 1rem; }
+.board-role h4 i { width: 13px; height: 13px; border: 2px solid var(--starlight); border-radius: 50%; }
+.board-role ul, .board-perks ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 0.92rem; }
+.board-role li.done, .board-perks li.done { color: var(--teal); font-weight: 600; }
+
+/* Cambio de mapa: una cortina con el nombre del lugar */
+.world-fade { position: absolute; inset: 0; z-index: 25; display: grid; place-items: center; background: #0b1230; pointer-events: none; opacity: 0; }
+.world-fade.playing { animation: world-fade 1.3s ease-out both; }
+.world-fade p { margin: 0; font-family: var(--font-display); font-size: clamp(1.8rem, 5vw, 3.4rem); color: #f4ecd9; letter-spacing: 0.04em; }
+@keyframes world-fade { 0% { opacity: 1; } 55% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---------- 10. Minijuegos (js/minigames.js, js/pilotgames.js) ----------
+   Colores fijos de papel y tinta: la ventana flota sobre cualquier pantalla. */
+.minigame { position: fixed; inset: 0; z-index: 35; display: grid; place-items: center; padding: 12px; background: rgba(11, 18, 48, 0.72); }
+.minigame-card { display: grid; gap: 8px; width: min(780px, 100%); max-height: 100%; padding: 12px 14px 14px; background: #f4ecd9; border: 3px solid #1f2d5c; border-radius: 10px; box-shadow: 6px 6px 0 #ff6b5b; color: #1f2d5c; animation: minigame-in 0.22s ease-out both; }
+@keyframes minigame-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
+.minigame-card header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.minigame-card h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.15rem, 2.6vw, 1.6rem); line-height: 1.1; }
+.minigame-close { flex: none; padding: 4px 12px; background: #e9dfc6; border: 2px solid #1f2d5c; border-radius: 6px; color: #1f2d5c; font-weight: 700; }
+.minigame-close:hover { background: #f3b641; }
+.minigame-how { margin: 0; font-size: 0.98rem; font-weight: 600; }
+.minigame-canvas { display: block; width: 100%; max-height: calc(100vh - 190px); border: 2px solid #1f2d5c; border-radius: 6px; touch-action: none; cursor: pointer; }
+.minigame-keys { margin: 0; font-size: 0.82rem; color: #55608a; }
+.minigame-keys:empty { display: none; }
+
+@media (max-width: 760px) {
+  .world-objectives { width: min(230px, 56vw); max-height: 42%; padding: 7px 9px 9px; }
+  .world-objectives li { font-size: 0.8rem; padding: 3px 5px; }
+  .world-objectives header strong, .world-flight header strong { font-size: 1.05rem; }
+  .world-team { width: 118px; gap: 4px; }
+  .crew-chip { padding: 2px 6px; }
+  .crew-chip span { display: none; }
+  .world-flight { width: min(220px, 54vw); padding: 7px 9px 9px; }
+  .world-flight dl { grid-template-columns: 1fr; }
+  .world-flight .event { display: none; }
+  .world-prompt { bottom: 56px; font-size: 0.92rem; padding: 7px 12px; }
+  .mission.is-world .mission-bar { gap: 2px 10px; }
+  .mission.is-world .mission-bar .hud-brand { font-size: 1.05rem; }
+  .mission.is-world .mission-title strong { font-size: 1rem; }
+  .mission.is-world .game-help, .mission.is-world .game-end { padding: 3px 10px; font-size: 0.85rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-fade.playing, .minigame-card, .world-flight .emergency { animation: none; }
+}
