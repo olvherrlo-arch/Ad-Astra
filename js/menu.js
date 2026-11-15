@@ -6,7 +6,7 @@
 import { createRoom, joinRoom, listPublicRooms, on, session } from './connection.js';
 import { openCredits } from './credits.js';
 import { openRecords } from './recordsview.js';
-import { openSettings } from './settings.js';
+import { openSettings, reducedMotion } from './settings.js';
 import { MAX_NAME_LENGTH, ROOM_CODE_LENGTH } from './shared.js';
 
 const PILOT_NAME_KEY = 'adastra.pilotName';
@@ -17,14 +17,9 @@ const CLOSE_ORDER = ['code', 'find', 'multiplayer', ...TOP_SECTIONS];
 const MENU_HTML = `
 <div class="menu-screen">
   <section class="menu-side">
-    <h1 class="title">
-      <span class="title-ad">Ad</span><span class="title-astra">Astra
-        <svg class="title-orbit" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">
-          <ellipse cx="200" cy="64" rx="194" ry="50" pathLength="1" />
-        </svg>
-        <img class="title-star" src="assets/icons/star.svg" alt="" />
-      </span>
-    </h1>
+    <!-- Logo del equipo: assets/images/logo.png (se muestra tal cual, sin deformarlo). -->
+    <h1 class="title"><img class="title-logo" src="assets/images/logo.png" width="1200" height="409" alt="Ad Astra" /></h1>
+    <p class="menu-tagline">Una aventura espacial para cuatro oficios</p>
 
     <nav class="menu" aria-label="Menú principal">
       <button type="button" class="menu-btn level-0" data-nav data-toggle="play" aria-expanded="false">Play</button>
@@ -72,8 +67,22 @@ const MENU_HTML = `
 
   <div class="menu-divider" aria-hidden="true"></div>
 
-  <!-- Arte del personaje: reemplaza assets/images/hero.png -->
-  <div class="hero" aria-hidden="true"><img src="assets/images/hero.png" alt="" /></div>
+  <!-- Escena: el boceto del transbordador (assets/images/shuttle-sketch.png) flota sobre un planeta lejano. -->
+  <div class="hero" aria-hidden="true">
+    <span class="hero-stars"></span>
+    <svg class="hero-planet" viewBox="0 0 220 220">
+      <defs><clipPath id="hero-planet-clip"><circle cx="110" cy="110" r="78" /></clipPath></defs>
+      <circle class="hero-planet-body" cx="110" cy="110" r="78" />
+      <g clip-path="url(#hero-planet-clip)" class="hero-planet-hatch">
+        <path d="M20 150 L150 20 M40 170 L170 40 M62 188 L188 62 M90 200 L200 90 M124 206 L206 124" />
+        <path class="hero-planet-band" d="M28 96 Q110 70 192 104 M34 130 Q112 112 188 138" />
+      </g>
+      <circle class="hero-planet-line" cx="110" cy="110" r="78" />
+      <ellipse class="hero-planet-ring" cx="110" cy="112" rx="104" ry="22" transform="rotate(-18 110 112)" />
+    </svg>
+    <img class="hero-ship" src="assets/images/shuttle-sketch.png" width="868" height="1280" alt="" />
+    <span class="hero-comet"></span>
+  </div>
 </div>`;
 
 const readPilotName = () => {
@@ -258,6 +267,15 @@ export const mountMenu = (container) => {
     if (codeInput.value.length !== ROOM_CODE_LENGTH) return;
     enterLobby((name) => joinRoom(codeInput.value, name));
   });
+
+  // Paralaje suave: la escena se corre un poco con el puntero (no con "reducir movimiento").
+  const screen = container.querySelector('.menu-screen');
+  const parallax = (event) => {
+    if (reducedMotion()) return;
+    screen.style.setProperty('--px', ((event.clientX / innerWidth) - 0.5).toFixed(3));
+    screen.style.setProperty('--py', ((event.clientY / innerHeight) - 0.5).toFixed(3));
+  };
+  screen.addEventListener('pointermove', parallax);
 
   // ---------- Estado inicial ----------
   showConnection(session.connected);

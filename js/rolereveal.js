@@ -36,7 +36,7 @@ const portrait = (player, size = 1, suited = false) => {
   canvas.style.height = `${h}px`;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
-  drawAstronaut(ctx, { x: w / 2 - 6, y: h - 6, color: player.color, hat: player.hat, role: suited ? player.role : null, scale: 0.78 * size });
+  drawAstronaut(ctx, { x: w / 2 - 6, y: h - 6, color: player.color, hat: player.hat, role: suited ? player.role : null, seed: player.id, pose: 'front', scale: 0.78 * size });
   canvas.className = suited ? 'reveal-portrait suited' : 'reveal-portrait plain';
   return canvas;
 };

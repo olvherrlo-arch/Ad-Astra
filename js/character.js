@@ -282,14 +282,64 @@ const drawPilotGear = (ctx, h) => {
   });
 };
 
+// ---------- Personajes por rol (dibujos del equipo) ----------
+// Cada hoja (assets/sprites/<nombre>.png) tiene 7 cuadros de 150×180 con los pies en y=176:
+// 0 de frente, 1 tres cuartos (quieto), 2 de perfil, 3 a 6 caminando hacia la derecha.
+// Vuelo es el único astronauta de carrera: conserva el traje (con el color y el sombrero del jugador).
+// Para cambiar quién es quién, edita ROLE_SKINS; con dos dibujos por rol, cada jugador recibe uno fijo.
+export const ROLE_SKINS = {
+  scientist: ['scientist-a', 'scientist-b'],
+  merchant: ['merchant-a', 'merchant-b'],
+  engineer: ['engineer-a', 'engineer-b'],
+  pilot: [],
+};
+const SKIN = { frameWidth: 150, frameHeight: 180, anchorX: 75, feetY: 176, front: 0, idle: 1, walkFrom: 3, walkFrames: 4, walkFps: 7 };
+const skinSheets = new Map();
+const skinLoads = [];
+for (const name of new Set(Object.values(ROLE_SKINS).flat())) {
+  const image = new Image();
+  skinLoads.push(new Promise((resolve) => { image.onload = image.onerror = () => resolve(); }));
+  image.src = `assets/sprites/${name}.png`;
+  skinSheets.set(name, image);
+}
+
+/** Número fijo a partir de un texto (el id del jugador): el mismo en todos los navegadores. */
+const hashText = (text) => {
+  let hash = 0;
+  for (const char of String(text ?? '')) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash;
+};
+
+/** La hoja del personaje de ese rol, o null si el rol usa el traje de astronauta (o aún no cargó). */
+const skinSheetFor = (role, seed) => {
+  const names = ROLE_SKINS[role];
+  if (!names?.length) return null;
+  const image = skinSheets.get(names[hashText(seed) % names.length]);
+  return image.complete && image.naturalWidth ? image : null;
+};
+
 const ROLE_GEAR = { scientist: drawScientistGear, merchant: drawMerchantGear, engineer: drawEngineerGear, pilot: drawPilotGear };
 
 /**
- * Dibuja un astronauta con los pies en (x, y).
+ * Dibuja un personaje con los pies en (x, y).
  * facing: 1 = mira a la derecha, -1 = a la izquierda. scale: 0.4 ≈ 68 px de alto.
- * role: id del rol asignado (o null en el lobby): le pone el equipo de ese rol.
+ * role: id del rol asignado (o null en el lobby). Ciencia, Comercio e Ingeniería usan su personaje
+ * dibujado; Vuelo (y cualquiera sin rol) es el astronauta con su color, su sombrero y el equipo del rol.
+ * seed: id del jugador (elige entre los dibujos del rol). pose 'front' = de frente (retratos).
+ * walkTime: segundos caminando (si se pasa, anima la caminata del personaje).
  */
-export const drawAstronaut = (ctx, { x, y, color, hat = 'none', role = null, facing = 1, frame = IDLE_FRAME, scale = 0.4, alpha = 1 }) => {
+export const drawAstronaut = (ctx, { x, y, color, hat = 'none', role = null, seed = '', pose = null, walkTime = null, facing = 1, frame = IDLE_FRAME, scale = 0.4, alpha = 1 }) => {
+  const skin = skinSheetFor(role, seed);
+  if (skin) {
+    const cell = pose === 'front' ? SKIN.front : walkTime === null ? SKIN.idle : SKIN.walkFrom + (Math.floor(walkTime * SKIN.walkFps) % SKIN.walkFrames);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    ctx.scale(facing * scale, scale);
+    ctx.drawImage(skin, cell * SKIN.frameWidth, 0, SKIN.frameWidth, SKIN.frameHeight, -SKIN.anchorX, -SKIN.feetY, SKIN.frameWidth, SKIN.frameHeight);
+    ctx.restore();
+    return;
+  }
   if (!sheet.complete || !sheet.naturalWidth) return;
   const { frameWidth, frameHeight, anchorX, feetY } = SPRITE;
 
@@ -338,8 +388,11 @@ export const drawHead = (ctx, { color, hat = 'none', size, x = 0, y = 0 }) => {
   });
 };
 
-/** Promesa que se cumple cuando el sprite está listo. */
-export const characterReady = new Promise((resolve) => {
-  if (sheet.complete && sheet.naturalWidth) resolve();
-  else sheet.addEventListener('load', () => resolve(), { once: true });
-});
+/** Promesa que se cumple cuando el astronauta y los personajes por rol están listos. */
+export const characterReady = Promise.all([
+  new Promise((resolve) => {
+    if (sheet.complete && sheet.naturalWidth) resolve();
+    else sheet.addEventListener('load', () => resolve(), { once: true });
+  }),
+  ...skinLoads,
+]);

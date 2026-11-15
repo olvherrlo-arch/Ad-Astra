@@ -220,3 +220,14 @@ El astronauta (assets/sprites/astronaut.png) es dibujo del usuario: no cambiarlo
 ## Forma de trabajar con este usuario
 - Prefiere que actúes directamente; manda bocetos/imágenes como referencia de diseño.
 - Después de cambios visuales: verificar en el navegador, correr `npm test` y la revisión de tipos, actualizar el README.
+
+## Expansión (EXPANSION MASTER PROMPT del usuario; hitos con commit + push obligatorio al terminar cada uno)
+Orden: 1 menú + logo + personajes por rol → 2 Sandbox → 3 Misión 2 (Life on Mars) → 4 Misión 3 (Across the
+Universe, 4 arcas John/Ringo/George/Paul: no renombrar) → 5 integración. No empezar un hito sin subir el anterior.
+- Hito 1 HECHO: menú con `assets/images/logo.png` (logo del equipo, no deformar ni redibujar) y escena
+  `.hero` (boceto `shuttle-sketch.png` en línea clara, planeta SVG, estrellas, cometa, paralaje con --px/--py).
+  Personajes por rol: `ROLE_SKINS` en js/character.js (hojas `assets/sprites/<rol>-a|b.png`, 7 cuadros de
+  150×180: frente, tres cuartos, perfil, 4 de caminata). `drawAstronaut({ role, seed: player.id, pose, walkTime })`.
+  Vuelo sigue siendo el astronauta (color + sombrero). `starman.png` está convertido pero SIN usar (falta que el
+  usuario diga dónde va). Los dibujos llegan como JPG con fondo blanco: se recortan en el navegador (relleno desde
+  los bordes) y se guardan como PNG con un receptor local temporal.

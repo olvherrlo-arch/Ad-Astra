@@ -62,7 +62,7 @@ const portrait = (player) => {
   canvas.className = 'score-portrait';
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
-  drawAstronaut(ctx, { x: 32, y: 92, color: player.color, hat: player.hat, role: player.role, scale: 0.5 });
+  drawAstronaut(ctx, { x: 32, y: 92, color: player.color, hat: player.hat, role: player.role, seed: player.id, pose: 'front', scale: 0.5 });
   return canvas;
 };
 

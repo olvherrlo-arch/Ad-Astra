@@ -1014,7 +1014,7 @@ export const mountWorld = (container) => {
     ctx.fill();
     ctx.restore();
     const frame = actor.moving ? Math.floor(actor.walkTime * WALK_FPS) % FRAME_COUNT : IDLE_FRAME;
-    drawAstronaut(ctx, { x: actor.x, y: actor.y, color: player.color, hat: player.hat, role: player.role, facing: actor.facing, frame, scale: SPRITE_SCALE, alpha: player.connected === false ? 0.45 : 1 });
+    drawAstronaut(ctx, { x: actor.x, y: actor.y, color: player.color, hat: player.hat, role: player.role, seed: player.id, walkTime: actor.moving ? actor.walkTime : null, facing: actor.facing, frame, scale: SPRITE_SCALE, alpha: player.connected === false ? 0.45 : 1 });
     const held = g.data.carrying?.[actor.id];
     if (held) drawItem(ctx, held.item, actor.x + actor.facing * 22, actor.y - 40 + (actor.moving ? Math.sin(actor.walkTime * 12) * 2 : 0), time);
   };
