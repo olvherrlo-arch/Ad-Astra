@@ -236,6 +236,11 @@ kbd {
 .menu-btn.level-2 { width: min(100%, 340px); font-size: 1.1rem; padding-block: 10px; }
 .menu-btn[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }
 .menu-btn[aria-disabled='true']:focus { background: transparent; color: var(--starlight); border-color: var(--dim); }
+/* Sandbox: el modo libre se distingue de la campaña con turquesa y trama. */
+.menu-btn-sandbox { border-color: var(--teal); border-style: dashed solid dashed dashed; }
+.menu-btn-sandbox .menu-btn-note { color: var(--teal); font-weight: 600; }
+.menu-btn-sandbox:focus .menu-btn-note { color: var(--night-deep); }
+.mission.is-sandbox .mission-title span { color: #1f8f80; font-weight: 700; letter-spacing: 0.06em; }
 .menu-btn-note { font-size: 0.7em; font-weight: 400; letter-spacing: 0.02em; text-transform: none; }
 
 .submenu {
@@ -1993,10 +1998,11 @@ html[data-effects='reduced'] .hero-comet, html[data-effects='reduced'] .hero-shi
 .score-retry-button:hover { transform: translate(-1px, -1px); }
 
 /* ---------- 14. Plan de la misión (js/planview.js) y récords (js/recordsview.js) ---------- */
-.plan-screen { display: grid; gap: 14px; padding: 18px clamp(12px, 3vw, 28px) 28px; color: var(--starlight); }
+/* Colores fijos: dentro del mundo los tokens son de papel y tinta, y este panel es de noche. */
+.plan-screen { display: grid; gap: 14px; padding: 18px clamp(12px, 3vw, 28px) 28px; color: #efe6cf; }
 .plan-kicker { margin: 0; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold); }
 .plan-title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1; }
-.plan-intro, .plan-learn { margin: 4px 0 0; max-width: 70ch; color: var(--dim); }
+.plan-intro, .plan-learn { margin: 4px 0 0; max-width: 70ch; color: #aab6d6; }
 .plan-status { margin: 0; padding: 6px 12px; border-left: 5px solid var(--teal); background: var(--night-deep); font-weight: 600; }
 .plan-total { margin: 0; font-family: var(--font-display); font-size: 1.2rem; letter-spacing: 0.03em; }
 .plan-group h4 { margin: 0 0 6px; font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }

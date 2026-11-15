@@ -231,3 +231,13 @@ Universe, 4 arcas John/Ringo/George/Paul: no renombrar) → 5 integración. No e
   Vuelo sigue siendo el astronauta (color + sombrero). `starman.png` está convertido pero SIN usar (falta que el
   usuario diga dónde va). Los dibujos llegan como JPG con fondo blanco: se recortan en el navegador (relleno desde
   los bordes) y se guardan como PNG con un receptor local temporal.
+- Hito 2 HECHO: SANDBOX (botón del menú). `createRoom(name, 'sandbox')` → sala `mode: 'sandbox'` que nace en
+  `playing` (sin lobby ni cuenta regresiva) con `createSandboxState()` (server/game.js). Misión `SANDBOX` en
+  js/missions.js (fuera de MISSIONS y de la campaña; `getMission('sandbox')`): etapas `validation` (Hangar: hereda
+  mercado + constructor + despegue desde la plataforma) → `flight` → `debrief`. Créditos: `economy.unlimited` y
+  `UNLIMITED_CREDITS` (js/partinfo.js; `credits()` lo muestra como ∞); `settle` repone el saldo tras cada acción;
+  ofertas sin stock y todas las rarezas. Vuelos de prueba: `PROFILES` (js/missionplan.js) orbit | flyby | landing,
+  `plan:set { profile }`, `sandboxFlightPlan` (tramos reales, todos en la etapa `flight`, sin Prisma: volver = éxito).
+  `mission:retry` vuelve al hangar (también en pleno vuelo = abortar). Pantalla js/sandboxview.js (pestaña "Vuelo de
+  prueba" del tablero). No guarda récords ni toca campañas. Las tareas ahora son por misión: `task.mission`
+  (sin ese campo = Luna) y `stageTasks(stageId, missionId)`. Pruebas: tests/sandbox.js (31).

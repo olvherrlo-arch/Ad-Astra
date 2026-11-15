@@ -348,8 +348,9 @@ export const mountMarket = (container) => {
     $('.budget-credits').textContent = credits(eco.credits);
     /** @type {HTMLElement} */ ($('.budget-bar i')).style.width = `${Math.max(0, (eco.credits / eco.budget) * 100)}%`;
     $('.budget-bar').setAttribute('aria-label', `Quedan ${number(eco.credits)} de ${number(eco.budget)} créditos`);
-    $('.budget-note').textContent = `Gastado ${number(spent)} de ${number(eco.budget)}.`
+    $('.budget-note').textContent = eco.unlimited ? 'Sandbox: créditos ilimitados. Compra lo que quieras; nada se agota.' : `Gastado ${number(spent)} de ${number(eco.budget)}.`
       + (fuel > 0 ? ` Llenar los tanques que ya compraron costará unos ${number(fuel)} más: guarden esa reserva.` : ' El combustible se paga aparte, al llenar los tanques.');
+    if (eco.unlimited) $('.budget-bar').setAttribute('aria-label', 'Créditos ilimitados');
     $('.budget').classList.toggle('low', eco.credits < fuel);
     $('.market-event').textContent = `Novedad: ${eco.event.text}`;
     $('.market-role').textContent = isMerchant()

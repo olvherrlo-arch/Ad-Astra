@@ -684,7 +684,10 @@ const advanceLeg = (work, leg, held) => {
   flight.progress = 0;
   if (!next) {
     flight.phase = 'over';
-    flight.result = flight.prism
+    // Un vuelo de prueba (Sandbox) no busca nada: basta con volver.
+    flight.result = !legs.some((item) => item.id === 'surface')
+      ? { ok: true, text: 'Vuelo de prueba completo: la nave volvió entera a la Tierra.' }
+      : flight.prism
       ? { ok: true, text: 'La nave volvió a la Tierra con el Prisma a bordo.' }
       : { ok: false, text: 'La nave volvió a la Tierra, pero sin el Prisma.' };
     note(work, flight.result.text, flight.result.ok ? 'good' : 'bad', true);

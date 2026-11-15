@@ -55,7 +55,7 @@ const kwh = (joules) => `${number(joules / 3.6e6, 1)} kWh`;
 /** Puntos del mapa para cada tramo: sube, viaja, rodea la Luna, vuelve. */
 const MAP_POINTS = {
   ascent: [90, 92], tli: [300, 52], loi: [520, 60], descent: [548, 104], surface: [560, 120],
-  liftoff: [548, 104], tei: [520, 140], reentry: [92, 112],
+  liftoff: [548, 104], tei: [520, 140], reentry: [92, 112], deorbit: [150, 60],
 };
 
 /**

@@ -12,7 +12,9 @@ export const number = (value, digits = 0) => {
   const [whole, decimals] = Math.abs(rounded).toString().split('.');
   return `${rounded < 0 ? '-' : ''}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.')}${decimals ? `,${decimals}` : ''}`;
 };
-export const credits = (value) => `${number(Math.round(value))} cr`;
+/** Saldo del modo Sandbox: no baja nunca (server/game.js lo repone después de cada acción). */
+export const UNLIMITED_CREDITS = 999_999_999;
+export const credits = (value) => (value >= UNLIMITED_CREDITS / 2 ? '∞ cr' : `${number(Math.round(value))} cr`);
 export const mass = (kg) => (kg >= 1000 ? `${number(kg / 1000, 1)} t` : `${number(Math.round(kg))} kg`);
 export const force = (newtons) => (newtons >= 1e6 ? `${number(newtons / 1e6, 2)} MN` : `${number(newtons / 1e3)} kN`);
 export const power = (watts) => `${number(Math.round(watts))} W`;

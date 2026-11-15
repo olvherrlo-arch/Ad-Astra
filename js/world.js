@@ -23,9 +23,11 @@ import { mountBuilder } from './builder.js';
 import { drawAstronaut, FRAME_COUNT, IDLE_FRAME, WALK_FPS } from './character.js';
 import { mountChat } from './chat.js';
 import { playCinematic } from './cinematic.js';
-import { endGame, isHost, on, sendAction, sendMove, session } from './connection.js';
+import { endGame, isHost, leaveRoom, on, sendAction, sendMove, session } from './connection.js';
 import { mountFlight } from './flightview.js';
 import { mountPlan } from './planview.js';
+import { mountTestFlight } from './sandboxview.js';
+import { PROFILES, planOf } from './missionplan.js';
 import { mountScore } from './scoreview.js';
 import { frameLoop } from './frame.js';
 import { MARKET_STAGES } from './market.js';
@@ -57,11 +59,11 @@ const ITEM_NAMES = { chip: 'la ficha de presupuesto', sample: 'la muestra', crat
 
 /** Tomas de cine al cambiar de etapa (js/cinematic.js). Solo se muestran; no cambian nada del juego. */
 const STAGE_SHOTS = {
-  flight: () => ({ art: 'rocket', camera: 'up', kicker: 'Etapa Vuelo', title: '¡Despegue!', text: 'Todos a sus puestos. Rumbo a la Luna.' }),
+  flight: (data) => ({ art: 'rocket', camera: 'up', kicker: 'Etapa Vuelo', title: '¡Despegue!', text: data.missionId === 'sandbox' ? 'A ver cómo vuela tu diseño.' : 'Todos a sus puestos. Rumbo a la Luna.' }),
   surface: () => ({ art: 'moon', camera: 'in', kicker: 'Etapa Superficie', title: 'El lado oculto', text: 'Hora de bajar y encontrar el Prisma.' }),
   return: () => ({ art: 'earth', camera: 'out', kicker: 'Etapa Regreso', title: 'Rumbo a casa', text: 'Queda volver con la nave entera.' }),
   debrief: (data) => (data.flight?.result?.ok
-    ? { art: 'bolt', camera: 'in', kicker: 'Resultado', title: 'Misión cumplida', text: 'El Prisma está en la Tierra. La leyenda era cierta.', tone: 'good' }
+    ? { art: data.missionId === 'sandbox' ? 'earth' : 'bolt', camera: 'in', kicker: 'Resultado', title: data.missionId === 'sandbox' ? 'Prueba superada' : 'Misión cumplida', text: data.missionId === 'sandbox' ? data.flight.result.text : 'El Prisma está en la Tierra. La leyenda era cierta.', tone: 'good' }
     : { art: 'moon', camera: 'out', kicker: 'Resultado', title: 'Misión fallida', text: data.flight?.result?.text ?? 'La nave no pudo completar el viaje.', tone: 'bad' }),
 };
 
@@ -247,7 +249,7 @@ export const mountWorld = (container) => {
     const inFlightStage = Boolean(flight) && flight.phase !== 'over' && leg && leg.stage === stageId;
 
     // ---------- Tareas de la etapa ----------
-    for (const task of stageTasks(stageId)) {
+    for (const task of stageTasks(stageId, data.missionId)) {
       if (isTaskDone(data, task) || !(task.shared || g.may(task.role))) continue;
       const pending = (task.needs ?? []).map(getTask).find((needed) => !isTaskDone(data, needed));
       const blocked = pending ? `Primero: ${pending.title.toLowerCase()}.` : null;
@@ -276,14 +278,19 @@ export const mountWorld = (container) => {
           { blocked: BUILD_STAGES.includes(stageId) ? null : 'El cohete se arma en las etapas Construcción y Validación.' });
         break;
       case 'board':
+        if (g.mission.sandbox && stageId !== 'debrief') {
+          add(flight ? 'Ver el vuelo de prueba' : 'Elegir el vuelo de prueba', () => openPanel(['testflight', 'board']));
+          break;
+        }
         add(stageId === 'debrief' ? 'Ver la evaluación de la misión' : 'Ver el tablero de misión', () => openPanel(stageId === 'debrief' ? ['score', 'flight', 'board'] : ['board', 'plan']));
         if (stageId !== 'debrief' && !flight) add('Elegir lugar de alunizaje y órbita', () => openPanel(['plan', 'board']));
         break;
       case 'lever': {
         if (stageId === 'debrief') {
           const hostReason = isHost() ? null : 'Lo decide el anfitrión.';
-          add('Rediseñar el cohete y volver a volar', () => { sounds.good(); sendAction({ type: 'mission:retry' }); }, { hold: true, blocked: hostReason });
-          add('Volver a la sala de embarque', () => endGame(), { hold: true, blocked: hostReason });
+          add(g.mission.sandbox ? 'Volver al hangar y probar otra cosa' : 'Rediseñar el cohete y volver a volar', () => { sounds.good(); sendAction({ type: 'mission:retry' }); }, { hold: true, blocked: hostReason });
+          if (g.mission.sandbox) add('Salir del Sandbox', () => leaveRoom(), { hold: true });
+          else add('Volver a la sala de embarque', () => endGame(), { hold: true, blocked: hostReason });
         } else if (stageId === 'validation') {
           add('Pasar de etapa', () => {}, { blocked: 'El despegue se da desde la plataforma de lanzamiento, en el hangar.' });
         } else if (g.next && !flight) {
@@ -345,6 +352,7 @@ export const mountWorld = (container) => {
       }
       case 'telemetry':
         add('Ver la telemetría', () => openPanel(['flight']));
+        if (g.mission.sandbox && flight && flight.phase !== 'over') add('Abortar la prueba y volver al hangar', () => { sounds.pick(); sendAction({ type: 'mission:retry' }); }, { hold: true });
         break;
       case 'solar':
         break;
@@ -412,7 +420,7 @@ export const mountWorld = (container) => {
     const { data, flight, leg, stageId, mine } = g;
     const whereOf = (task) => (task.kind === 'carry' ? (mine?.id === task.id ? task.to : task.from) : task.at ?? null);
     const taskLines = () => {
-      for (const task of stageTasks(stageId)) {
+      for (const task of stageTasks(stageId, data.missionId)) {
         const progress = task.kind === 'carry' && task.count > 1 ? ` (${taskProgress(data, task)}/${task.count})` : '';
         push(task.role, task.title + progress, whereOf(task), { done: isTaskDone(data, task), tag: g.held.includes(task.role) ? '' : 'opcional', shared: Boolean(task.shared) });
       }
@@ -420,6 +428,7 @@ export const mountWorld = (container) => {
 
     if (stageId === 'debrief') {
       push(null, 'Ver la evaluación en el tablero de misión', 'board');
+      if (g.mission.sandbox) { push(null, 'Palanca: volver al hangar y probar otra cosa', 'lever'); return list; }
       push(null, isHost() ? 'Cuando quieran: palanca para volver a la sala de embarque' : 'El anfitrión los lleva de vuelta con la palanca', 'lever');
       return list;
     }
@@ -430,6 +439,11 @@ export const mountWorld = (container) => {
         const decided = Boolean(data.plan?.decided);
         const role = g.held.includes('pilot') || !g.held.includes('scientist') ? 'pilot' : 'scientist';
         push(role, 'Decidir el lugar de alunizaje y la órbita (tablero de misión)', 'board', { done: decided, tag: 'decisión' });
+      }
+      if (g.mission.sandbox) {
+        push(null, `Vuelo de prueba: ${PROFILES[planOf(data).profile ?? 'orbit'].name} (se cambia en el tablero)`, 'board', { done: Boolean(data.plan?.decided), tag: 'decisión' });
+        push('pilot', 'Despegar desde la plataforma de lanzamiento', 'gate', { step: true });
+        return list;
       }
       if (missingTasks(data, stageId, g.held).length === 0) {
         if (stageId === 'validation') push('pilot', 'Todos a la plataforma: Vuelo da el despegue', 'gate', { step: true });
@@ -541,6 +555,7 @@ export const mountWorld = (container) => {
     flight: { name: 'Informe del vuelo', mount: (box) => mountFlight(box, { readOnly: true }) },
     board: { name: 'Tablero de misión', mount: mountBoard },
     plan: { name: 'Plan de la misión', mount: mountPlan },
+    testflight: { name: 'Vuelo de prueba', mount: mountTestFlight },
   };
 
   const showTool = (name) => {

@@ -9,7 +9,7 @@
  */
 import { drawAstronaut } from './character.js';
 import { isHost, on, sendAction, session } from './connection.js';
-import { ORBITS, SITES } from './missionplan.js';
+import { ORBITS, PROFILES, SITES } from './missionplan.js';
 import { number } from './partinfo.js';
 import { reducedMotion } from './settings.js';
 import { ROLES, roleName } from './shared.js';
@@ -87,7 +87,7 @@ export const mountScore = (box) => {
     const team = el('section', `score-team ${final.ok ? 'ok' : 'bad'}`);
     const head = el('header', 'score-team-head');
     const attempt = session.state.data.attempt ?? 1;
-    head.append(el('p', 'score-kicker', attempt > 1 ? `Resultado del equipo · intento ${attempt}` : 'Resultado del equipo'), el('h3', 'score-result', final.ok ? 'Misión cumplida' : 'Misión fallida'));
+    head.append(el('p', 'score-kicker', attempt > 1 ? `Resultado del equipo · intento ${attempt}` : 'Resultado del equipo'), el('h3', 'score-result', final.sandbox ? (final.ok ? 'Prueba superada' : 'La prueba falló') : final.ok ? 'Misión cumplida' : 'Misión fallida'));
     const total = el('strong', 'score-team-points');
     const totalBox = el('div', 'score-team-total');
     totalBox.append(total, el('span', '', 'puntos del equipo'));
@@ -111,9 +111,10 @@ export const mountScore = (box) => {
     if (science && science.max > 0) {
       facts.append(el('span', '', `Ciencia: ${science.value} de ${science.max} pts · ${number(science.sent)} de ${number(science.generated)} MB enviados`), bar(science.value / science.max, '#f3b641'));
     } else {
-      facts.append(el('span', '', 'Ciencia: no viajó ningún instrumento científico'));
+      facts.append(el('span', '', final.sandbox ? 'Sandbox: créditos ilimitados, física de verdad' : 'Ciencia: no viajó ningún instrumento científico'));
     }
     const planLine = el('p', 'score-plan', [final.plan ? `${SITES[final.plan.site]?.name ?? ''} · ${ORBITS[final.plan.orbit]?.name ?? ''}` : '', `Dificultad: ${final.difficulty ?? 'Normal'}`].filter(Boolean).join(' · '));
+    if (final.sandbox) planLine.textContent = `Vuelo de prueba: ${PROFILES[final.plan?.profile ?? 'orbit']?.name ?? ''}`;
     if (final.place) planLine.textContent += ` · Puesto ${final.place} en la tabla de récords`;
     team.append(head, totalBox, objectives, facts, planLine, lists);
     countUp(total, final.teamPoints);
@@ -209,12 +210,12 @@ export const mountScore = (box) => {
     const note = el('p', 'score-note', 'Cada rol suma por lo suyo y con su propia precisión: los puntajes no compiten entre sí, muestran cómo aportó cada quien.');
     // Volver a intentar: mismo cohete, misma bodega y el dinero que quedó. Lo decide el anfitrión.
     const retry = el('div', 'score-retry');
-    const retryText = el('p', '', final.ok
+    const retryText = el('p', '', final.sandbox ? 'Vuelve al hangar cuando quieras: cambia piezas, elige otro viaje y despega de nuevo.' : final.ok
       ? '¿Se puede hacer mejor? Vuelvan al hangar, cambien el diseño y vuelen otra vez: cuenta el último vuelo.'
       : 'Vuelvan al hangar con lo aprendido: cambien el diseño, revísenlo y despeguen otra vez. El combustible quemado no se devuelve.');
     retry.append(retryText);
     if (isHost()) {
-      const button = /** @type {HTMLButtonElement} */ (el('button', 'score-retry-button', 'Rediseñar y volver a volar'));
+      const button = /** @type {HTMLButtonElement} */ (el('button', 'score-retry-button', final.sandbox ? 'Volver al hangar' : 'Rediseñar y volver a volar'));
       button.type = 'button';
       button.addEventListener('click', () => sendAction({ type: 'mission:retry' }));
       retry.append(button);

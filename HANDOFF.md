@@ -15,7 +15,7 @@ Lee primero `CLAUDE.md` (está al día: estructura, reglas, pruebas, cómo compa
 1. Link fijo en Render (`render.yaml` ya existe): lo tiene que hacer el usuario (cuenta + autorizar GitHub).
    En el plan gratis el servidor se duerme y `data/records.json` se borra en cada reinicio.
 2. Probar en un teléfono real y con 2 a 4 personas una misión completa.
-3. Modo libre (sandbox): dificultad "Libre" con mucho presupuesto y sin fallas.
+3. HECHO: modo Sandbox (ver CLAUDE.md, sección Expansión). Sigue la expansión: Misión 2, Misión 3, integración.
 4. Guardar y compartir diseños de cohete (código para exportar e importar).
 5. Informe de misión descargable (página para imprimir o PDF).
 6. Misiones 2 y 3 (Marte, Éxodo).

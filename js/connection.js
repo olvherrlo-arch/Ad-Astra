@@ -240,7 +240,8 @@ const enter = async (event, payload) => {
   }
 };
 
-export const createRoom = (playerName) => enter(EVENTS.ROOM_CREATE, { playerName });
+/** `mode` 'sandbox' crea una sala de una persona que empieza directo en el hangar del modo libre. */
+export const createRoom = (playerName, mode = 'campaign') => enter(EVENTS.ROOM_CREATE, { playerName, mode });
 
 export const joinRoom = (code, playerName) => enter(EVENTS.ROOM_JOIN, { code, playerName });
 

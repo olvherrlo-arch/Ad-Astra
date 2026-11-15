@@ -99,14 +99,38 @@ export const moonFlightPlan = (plan = DEFAULT_PLAN) => {
   ];
 };
 
-export const FLIGHT_PLANS = { moon: moonFlightPlan };
+/**
+ * Vuelos de prueba del Sandbox: los mismos tramos reales del viaje lunar, recortados según el perfil
+ * (js/missionplan.js → PROFILES). Todo se vuela en la etapa `flight`; no hay Prisma que buscar.
+ * @param {{ site?: string, orbit?: string, profile?: string }} [plan]
+ */
+export const sandboxFlightPlan = (plan = DEFAULT_PLAN) => {
+  const moon = moonFlightPlan(plan);
+  const leg = (id) => ({ ...moon.find((item) => item.id === id), stage: 'flight' });
+  if (plan.profile === 'landing') return ['ascent', 'tli', 'loi', 'descent', 'liftoff', 'tei', 'reentry'].map(leg);
+  if (plan.profile === 'flyby') return ['ascent', 'tli', 'loi', 'tei', 'reentry'].map(leg);
+  // Órbita baja: para volver basta bajar el punto más bajo de la órbita hasta el aire (60 km).
+  const { earth } = BODIES;
+  const leo = earth.radius + LOW_EARTH_ORBIT;
+  const deorbit = circularVelocity(earth.mu, leo) - orbitSpeed(earth.mu, leo, (leo + earth.radius + 60_000) / 2);
+  return [
+    leg('ascent'),
+    {
+      id: 'deorbit', name: 'Frenar para volver', dv: round(deorbit), stage: 'flight', hours: 3, sun: 0.6,
+      note: 'Un encendido corto hacia atrás baja la órbita hasta rozar el aire. El resto del frenado lo hace la atmósfera.',
+    },
+    { ...leg('reentry'), hours: 1 },
+  ];
+};
+
+export const FLIGHT_PLANS = { moon: moonFlightPlan, sandbox: sandboxFlightPlan };
 
 const cache = new Map();
 /** El plan de vuelo de una misión para un plan elegido (se calcula una vez por combinación). */
 export const flightPlanFor = (missionId, plan) => {
   const build = FLIGHT_PLANS[missionId];
   if (!build) return null;
-  const key = `${missionId}:${plan?.site}:${plan?.orbit}`;
+  const key = `${missionId}:${plan?.site}:${plan?.orbit}:${plan?.profile}`;
   if (!cache.has(key)) cache.set(key, build(plan));
   return cache.get(key);
 };

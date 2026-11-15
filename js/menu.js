@@ -52,6 +52,9 @@ const MENU_HTML = `
         </div>
       </div>
 
+      <button type="button" class="menu-btn level-0 menu-btn-sandbox" data-nav data-action="sandbox">
+        Sandbox <span class="menu-btn-note">Modo libre · créditos ∞</span>
+      </button>
       <button type="button" class="menu-btn level-0" data-nav data-action="options" aria-haspopup="dialog">Options</button>
       <button type="button" class="menu-btn level-0" data-nav data-action="records" aria-haspopup="dialog">Records</button>
       <button type="button" class="menu-btn level-0" data-nav data-action="credits" aria-haspopup="dialog">Credits</button>
@@ -210,12 +213,14 @@ export const mountMenu = (container) => {
   nav.addEventListener('click', (event) => {
     const toggleButton = event.target.closest('[data-toggle]');
     if (toggleButton) toggle(toggleButton.dataset.toggle);
-    if (event.target.closest('[data-action="create"]')) enterLobby(createRoom);
+    if (event.target.closest('[data-action="create"]')) enterLobby((name) => createRoom(name));
+    // SANDBOX: un hangar para ti solo, sin lobby ni espera, con créditos ilimitados.
+    if (event.target.closest('[data-action="sandbox"]')) enterLobby((name) => createRoom(name, 'sandbox'), 'Piloto');
     // SOLO: una sala privada solo para ti que despega sola. Manejas los cuatro roles (modo demo).
     if (event.target.closest('[data-action="solo"]')) {
       const name = nameInputs[0].value.trim() || 'Piloto';
       session.solo = true;
-      enterLobby(createRoom, name).then(() => { if (!session.room) session.solo = false; });
+      enterLobby((pilot) => createRoom(pilot), name).then(() => { if (!session.room) session.solo = false; });
     }
     const opener = event.target.closest('[data-action="options"], [data-action="credits"], [data-action="records"]');
     if (opener) {

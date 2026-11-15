@@ -210,7 +210,7 @@ const finalize = (score, data, players) => {
   const flight = data.flight;
   const ok = Boolean(flight.result.ok);
   const mission = getMission(data.missionId);
-  const tasks = (mission?.stages ?? []).flatMap((stage) => stageTasks(stage.id));
+  const tasks = (mission?.stages ?? []).flatMap((stage) => stageTasks(stage.id, mission?.id));
   const done = tasks.filter((task) => (task.auto ? task.auto(data) : data.tasks?.[task.id]?.done)).length;
 
   // Bonos finales por rol (a quien tiene ese rol): cosas que solo se pueden medir al terminar.
@@ -234,13 +234,13 @@ const finalize = (score, data, players) => {
 
   const highlights = [];
   const mistakes = [];
-  if (ok) highlights.push('El Prisma llegó a la Tierra: misión cumplida.');
+  if (ok) highlights.push(mission?.sandbox ? 'El cohete hizo el viaje completo y volvió entero.' : 'El Prisma llegó a la Tierra: misión cumplida.');
   if (flight.touchdown === 'soft') highlights.push('Alunizaje suave en el lado oculto.');
   if (flight.located && flight.scans <= 3) highlights.push(`El Prisma se ubicó con solo ${flight.scans === 1 ? 'una lectura' : `${flight.scans} lecturas`}.`);
   if (flight.dvUsed > 0 && flight.wasted / flight.dvUsed < 0.02) highlights.push('Encendidos muy precisos: casi nada de combustible de más.');
   if (!flight.savedPower) highlights.push('La batería alcanzó sin pasar a modo ahorro.');
   if (science.max > 0 && science.value >= science.max * 0.95) highlights.push(`Llegó toda la ciencia a la Tierra: ${science.value} puntos.`);
-  if (!ok) mistakes.push(`Misión fallida: ${flight.result.text}`);
+  if (!ok) mistakes.push(`${mission?.sandbox ? 'La prueba falló' : 'Misión fallida'}: ${flight.result.text}`);
   if (flight.touchdown === 'crash') mistakes.push('La nave golpeó el suelo al alunizar.');
   if (flight.touchdown === 'hard') mistakes.push('El alunizaje fue duro: las patas sufrieron.');
   if (flight.dvUsed > 0 && flight.wasted / flight.dvUsed >= 0.05) mistakes.push(`Se quemaron ${Math.round(flight.wasted)} m/s de más.`);
@@ -248,7 +248,7 @@ const finalize = (score, data, players) => {
   if (flight.savedPower) mistakes.push('Faltó energía y hubo que pasar a modo ahorro.');
   if (flight.blackout) mistakes.push('Hubo tramos sin señal con la Tierra.');
   if (science.generated > science.sent) mistakes.push(`Se perdieron ${Math.round(science.generated - science.sent)} MB de datos: el enlace no alcanzó (más antena, un repetidor o una órbita más alta).`);
-  if (science.max === 0) mistakes.push('No viajó ningún instrumento científico: la misión no trajo ciencia.');
+  if (science.max === 0 && !mission?.sandbox) mistakes.push('No viajó ningún instrumento científico: la misión no trajo ciencia.');
 
   // Logros de cada jugador (a partir de lo que de verdad hizo).
   const badges = {};
@@ -279,6 +279,7 @@ const finalize = (score, data, players) => {
     science,
     plan: data.plan ?? null,
     difficulty: data.difficulty ?? 'Normal',
+    sandbox: Boolean(mission?.sandbox),
     highlights,
     mistakes,
     badges,

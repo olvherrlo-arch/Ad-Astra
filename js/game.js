@@ -12,7 +12,7 @@
  *   Las reglas están en server/game.js; si el servidor rechaza algo, llega on('rejected', mensaje)
  *   y aquí se muestra el motivo.
  */
-import { endGame, isHost, on, session } from './connection.js';
+import { endGame, isHost, leaveRoom, on, session } from './connection.js';
 import { mountConstellation } from './constellation.js';
 import { mountWorld } from './world.js';
 import { getMission } from './missions.js';
@@ -57,12 +57,16 @@ export const mountGame = (container) => {
     const mission = getMission(data.missionId);
     if (data.scene === 'prologue') return ['Prólogo', PROLOGUE.title];
     if (data.scene === 'select' || !mission) return ['Campaña', 'La constelación'];
+    if (mission.sandbox) return ['Modo libre · créditos ilimitados', 'Sandbox'];
     return [`Misión ${mission.number}`, mission.title];
   };
 
   const render = () => {
     if (!session.room) return;
     endButton.hidden = !isHost();
+    // El Sandbox no tiene lobby: el botón lleva directo al menú.
+    endButton.textContent = session.room.mode === 'sandbox' ? 'Salir al menú' : 'Volver al lobby';
+    container.querySelector('.mission').classList.toggle('is-sandbox', session.room.mode === 'sandbox');
     const data = session.state?.data;
     if (!data) return;
 
@@ -94,7 +98,7 @@ export const mountGame = (container) => {
     toastTimer = window.setTimeout(() => { toast.hidden = true; }, TOAST_MS);
   };
 
-  endButton.addEventListener('click', endGame);
+  endButton.addEventListener('click', () => (session.room?.mode === 'sandbox' ? leaveRoom() : endGame()));
   $('.game-help:not(.game-options)').addEventListener('click', openTutorialLibrary);
   $('.game-options').addEventListener('click', () => openSettings());
 

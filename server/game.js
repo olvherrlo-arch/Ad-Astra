@@ -31,11 +31,11 @@
  */
 import { randomInt } from 'node:crypto';
 import { emptyRocket, installedUids, toPhysicsStages } from '../js/assembly.js';
-import { freshCampaign, getMission, missionFor } from '../js/missions.js';
-import { number } from '../js/partinfo.js';
+import { SANDBOX, freshCampaign, getMission, missionFor } from '../js/missions.js';
+import { UNLIMITED_CREDITS, number } from '../js/partinfo.js';
 import { propellantCost, validateRocket } from '../js/rocket.js';
 import { EVENTS, ROLES, canActAs, roleHolder, roleName } from '../js/shared.js';
-import { ORBITS, SITES, planOf } from '../js/missionplan.js';
+import { ORBITS, PROFILES, SITES, planOf } from '../js/missionplan.js';
 import { getStory } from '../js/story.js';
 import { missingTasks, rolesReady } from '../js/tasks.js';
 import { mapIdFor } from '../js/worldmaps.js';
@@ -92,6 +92,29 @@ export const createInitialState = (campaign = freshCampaign()) => ({
   secret: { seed: randomInt(2 ** 31), vault: null, undo: [], ship: null },
 });
 
+/**
+ * Estado con el que empieza el modo Sandbox: directo al hangar, sin historia ni constelación.
+ * Tiene su propia economía (créditos ilimitados) y no toca ninguna campaña.
+ */
+export const createSandboxState = () => {
+  const base = createInitialState({ ...freshCampaign(), prologueSeen: true });
+  const { economy, vault } = openEconomy(SANDBOX, base.secret.seed);
+  return {
+    ...base,
+    data: {
+      ...base.data,
+      scene: 'mission',
+      missionId: SANDBOX.id,
+      economy,
+      rocket: emptyRocket(),
+      plan: { ...planOf(null), profile: 'orbit' },
+      attempt: 1,
+      log: ['Sandbox: créditos ilimitados. Compra, arma, despega y vuelve al hangar las veces que quieras.'],
+    },
+    secret: { ...base.secret, vault },
+  };
+};
+
 /** Lo único que sale del servidor. */
 export const publicState = ({ version, data }) => ({ version, data });
 
@@ -110,7 +133,7 @@ export const isGameAction = (action) => {
     case 'mission:start':
       return typeof action.missionId === 'string' && action.missionId.length <= 20;
     case 'plan:set':
-      return (action.site === undefined || typeof action.site === 'string') && (action.orbit === undefined || typeof action.orbit === 'string');
+      return ['site', 'orbit', 'profile'].every((key) => action[key] === undefined || typeof action[key] === 'string');
     default:
       return isEconomyAction(action) || isBuildAction(action) || isFlightAction(action) || isWorldAction(action);
   }
@@ -123,6 +146,8 @@ export const isGameAction = (action) => {
 const settle = (previous, merged) => {
   const stageId = getMission(merged.missionId)?.stages[merged.stageIndex]?.id;
   if (merged.scene === 'mission' && stageId) merged.confirmed = rolesReady(merged, stageId);
+  // Sandbox: el saldo no baja nunca, se gaste lo que se gaste.
+  if (merged.economy?.unlimited && merged.economy.credits !== UNLIMITED_CREDITS) merged.economy = { ...merged.economy, credits: UNLIMITED_CREDITS };
   const moved = merged.stageIndex !== previous.stageIndex
     || merged.flight?.legIndex !== previous.flight?.legIndex
     || mapIdFor(merged) !== mapIdFor(previous);
@@ -180,7 +205,7 @@ const applyRules = (state, action, actor) => {
     if (result && !base.flight.result) {
       // Fin del vuelo: la misión pasa a la Evaluación. Si salió bien, se desbloquea la siguiente.
       next.stageIndex = stages.findIndex((stage) => stage.id === 'debrief');
-      if (result.ok) next.campaign = completeMission(base.campaign, base.missionId);
+      if (result.ok && base.campaign.missions[base.missionId]) next.campaign = completeMission(base.campaign, base.missionId);
     } else if (flown.flight.phase === 'stageDone') {
       // Terminaron los tramos de esta parte del viaje: la etapa cambia sola.
       next.stageIndex = base.stageIndex + 1;
@@ -240,7 +265,7 @@ const applyRules = (state, action, actor) => {
       if (refusal) return refusal;
       if (data.scene !== 'select') return { error: 'La misión se elige desde la constelación.' };
       const chosen = getMission(action.missionId);
-      if (!chosen) return { error: 'Esa misión no existe.' };
+      if (!chosen || !(chosen.id in data.campaign.missions)) return { error: 'Esa misión no existe.' };
       const status = data.campaign.missions[chosen.id];
       if (status === 'locked') return { error: `${chosen.title} sigue bloqueada: primero hay que completar la misión anterior.` };
       if (chosen.stages.length === 0) return { error: `${chosen.title} todavía no está construida.` };
@@ -279,8 +304,11 @@ const applyRules = (state, action, actor) => {
       if (!actor.canActAs('pilot') && !actor.canActAs('scientist')) return { error: 'El plan lo deciden Vuelo y Ciencia.' };
       if (action.site !== undefined && !SITES[action.site]) return { error: 'Ese lugar no existe.' };
       if (action.orbit !== undefined && !ORBITS[action.orbit]) return { error: 'Esa órbita no existe.' };
-      const plan = { ...planOf(data), ...(action.site ? { site: action.site } : {}), ...(action.orbit ? { orbit: action.orbit } : {}) };
-      if (plan.site === planOf(data).site && plan.orbit === planOf(data).orbit) return { error: 'Ese ya es el plan.' };
+      if (action.profile !== undefined && !(mission.sandbox && PROFILES[action.profile])) return { error: 'Ese vuelo de prueba no existe.' };
+      const before = planOf(data);
+      const plan = { ...before, ...(action.site ? { site: action.site } : {}), ...(action.orbit ? { orbit: action.orbit } : {}), ...(action.profile ? { profile: action.profile } : {}) };
+      if (plan.site === before.site && plan.orbit === before.orbit && plan.profile === before.profile) return { error: 'Ese ya es el plan.' };
+      if (mission.sandbox) return commit({ plan: { ...plan, decided: true } }, `${actor.name} eligió el vuelo de prueba: ${PROFILES[plan.profile].name}.`);
       return commit({ plan: { ...plan, decided: true } }, `${actor.name} cambió el plan: ${SITES[plan.site].name}, ${ORBITS[plan.orbit].name.toLowerCase()}.`);
     }
 
@@ -291,13 +319,15 @@ const applyRules = (state, action, actor) => {
     case 'mission:retry': {
       const refusal = hostOnly('decide volver a intentarlo');
       if (refusal) return refusal;
-      if (data.scene !== 'mission' || stages[data.stageIndex]?.id !== 'debrief') return { error: 'Se puede volver a intentar desde la Evaluación.' };
-      const buildIndex = stages.findIndex((stage) => stage.id === 'build');
+      // En el Sandbox también se puede cortar una prueba en pleno vuelo y volver al hangar.
+      const abort = Boolean(mission?.sandbox && data.flight);
+      if (data.scene !== 'mission' || (stages[data.stageIndex]?.id !== 'debrief' && !abort)) return { error: 'Se puede volver a intentar desde la Evaluación.' };
+      const buildIndex = stages.findIndex((stage) => stage.id === (mission.sandbox ? 'validation' : 'build'));
       if (buildIndex === -1) return { error: 'Esta misión no tiene etapa de construcción.' };
       const attempt = (data.attempt ?? 1) + 1;
       return commit(
         { stageIndex: buildIndex, flight: null, carrying: {}, jobs: {}, attempt },
-        `${actor.name} vuelve al hangar: intento ${attempt}. Cambien el diseño, revísenlo y despeguen otra vez.`,
+        mission.sandbox ? `De vuelta en el hangar: prueba ${attempt}. Cambia lo que quieras y despega otra vez.` : `${actor.name} vuelve al hangar: intento ${attempt}. Cambien el diseño, revísenlo y despeguen otra vez.`,
         { ship: null },
       );
     }
@@ -428,7 +458,7 @@ export const registerGameHandlers = (io, socket, store) => {
     room.state = result.state;
     // Terminó una misión: va a la tabla de récords (una vez por vuelo).
     const final = room.state.data.score?.final;
-    if (final && !previous.data.score?.final) {
+    if (final && !previous.data.score?.final && !getMission(room.state.data.missionId)?.sandbox) {
       const mission = getMission(room.state.data.missionId);
       const place = addRecord({
         team: players.map((p) => p.name),

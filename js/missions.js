@@ -11,7 +11,8 @@
  *
  * La historia del Prisma y de Aztlán es ficción del juego, no ciencia.
  */
-import { flightPlanFor, moonFlightPlan } from './flightplans.js';
+import { flightPlanFor, moonFlightPlan, sandboxFlightPlan } from './flightplans.js';
+import { UNLIMITED_CREDITS } from './partinfo.js';
 import { planOf } from './missionplan.js';
 
 /** @typedef {{ id: string, name: string, summary: string, tools: boolean, tool?: string | string[], tasks: Record<string, string> }} Stage */
@@ -189,6 +190,46 @@ export const MISSIONS = [
   },
 ];
 
+/**
+ * SANDBOX: modo libre para una persona. No es parte de la campaña (no está en MISSIONS ni en la
+ * constelación): un hangar con créditos ilimitados para armar lo que sea y probarlo en vuelo.
+ * El hangar usa el id de etapa `validation` para heredar sus reglas: mercado y constructor abiertos,
+ * revisión del cohete y despegue desde la plataforma.
+ */
+export const SANDBOX = {
+  id: 'sandbox',
+  number: 0,
+  sandbox: true,
+  unlimited: true, //  créditos que no bajan (solo aquí: la campaña sigue con su presupuesto)
+  title: 'Sandbox',
+  story: 'Un hangar para experimentar sin presupuesto.',
+  goal: 'Arma lo que quieras, despega y mira cómo se comporta.',
+  duration: 'Libre',
+  difficulty: 0,
+  equipment: [],
+  stages: [
+    {
+      id: 'validation', name: 'Hangar', tools: true, tool: ['builder', 'market'],
+      summary: 'Compra cualquier pieza, arma el cohete y elige el vuelo de prueba. Lo crítico impide el despegue.',
+      tasks: { scientist: 'Prueba instrumentos.', merchant: 'Compra lo que haga falta: los créditos no se acaban.', engineer: 'Arma y cambia el cohete.', pilot: 'Elige el vuelo de prueba y despega.' },
+    },
+    {
+      id: 'flight', name: 'Vuelo de prueba', tools: true, tool: 'flight',
+      summary: 'El cohete vuela con sus números de verdad: masa, empuje, combustible y energía.',
+      tasks: { scientist: 'Fija la posición antes de cada encendido.', merchant: 'Asegura la carga.', engineer: 'Ajusta los motores y la energía.', pilot: 'Pilotea cada maniobra.' },
+    },
+    {
+      id: 'debrief', name: 'Resultado', tools: true, tool: 'flight',
+      summary: 'Qué pasó y por qué. Vuelve al hangar y prueba otra cosa.',
+      tasks: { scientist: '', merchant: '', engineer: '', pilot: '' },
+    },
+  ],
+  budget: UNLIMITED_CREDITS,
+  maxTier: 'legendary', // se vende todo
+  requirements: { capabilities: ['command', 'guidance'], recommended: ['attitude', 'comms'] },
+  flightPlan: sandboxFlightPlan({ profile: 'orbit' }),
+};
+
 export const DIFFICULTY_NAMES = ['', 'Inicial', 'Intermedia', 'Avanzada'];
 
 /** Cómo se le dice a cada estado de misión en pantalla. */
@@ -199,7 +240,8 @@ export const MISSION_STATUS = {
   completed: 'Completada',
 };
 
-export const getMission = (id) => MISSIONS.find((m) => m.id === id);
+/** @returns {any} la misión con ese id (las de la campaña o el Sandbox) */
+export const getMission = (id) => (id === SANDBOX.id ? SANDBOX : MISSIONS.find((m) => m.id === id));
 
 /**
  * Por ahora (pedido del equipo) las tres misiones empiezan desbloqueadas. Con false, cada una se abre

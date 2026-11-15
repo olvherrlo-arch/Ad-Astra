@@ -208,9 +208,24 @@ export const TASKS = [
   },
 ];
 
+// ---------- Sandbox: nada es obligatorio salvo tener algo armado que pase la revisión ----------
+TASKS.push(
+  {
+    id: 'sandbox.buy', mission: 'sandbox', stage: 'validation', role: 'merchant', kind: 'menu', at: 'terminal', tool: 'market',
+    title: 'Comprar piezas en la terminal (créditos ilimitados)', verb: 'Abrir el mercado',
+    auto: (data) => (data.economy?.inventory.length ?? 0) > 0,
+  },
+  {
+    id: 'sandbox.build', mission: 'sandbox', stage: 'validation', role: 'engineer', kind: 'menu', at: 'assembly', tool: 'builder',
+    title: 'Armar un cohete sin errores críticos', verb: 'Abrir el constructor',
+    auto: noCritical,
+  },
+);
+
 const BY_ID = new Map(TASKS.map((task) => [task.id, task]));
 export const getTask = (id) => BY_ID.get(id);
-export const stageTasks = (stageId) => TASKS.filter((task) => task.stage === stageId);
+/** Tareas de una etapa. Cada misión tiene las suyas (`task.mission`; sin ese campo son de la Luna). */
+export const stageTasks = (stageId, missionId = 'moon') => TASKS.filter((task) => task.stage === stageId && (task.mission ?? 'moon') === (missionId ?? 'moon'));
 
 /** ¿Está hecha esta tarea? Las `auto` se miran en el estado; las demás, en `data.tasks`. */
 export const isTaskDone = (data, task) => (task.auto ? Boolean(task.auto(data)) : Boolean(data.tasks?.[task.id]?.done));
@@ -223,11 +238,11 @@ export const taskProgress = (data, task) => data.tasks?.[task.id]?.progress ?? 0
  * conectado (`heldRoles`): un puesto libre no frena al resto (sus tareas quedan opcionales).
  */
 export const missingTasks = (data, stageId, heldRoles = ROLES.map((role) => role.id)) =>
-  stageTasks(stageId).filter((task) => heldRoles.includes(task.role) && !isTaskDone(data, task));
+  stageTasks(stageId, data.missionId).filter((task) => heldRoles.includes(task.role) && !isTaskDone(data, task));
 
 /** Un rol está listo cuando no le quedan tareas en la etapa. */
 export const rolesReady = (data, stageId) =>
-  Object.fromEntries(ROLES.map((role) => [role.id, stageTasks(stageId).every((task) => task.role !== role.id || isTaskDone(data, task))]));
+  Object.fromEntries(ROLES.map((role) => [role.id, stageTasks(stageId, data.missionId).every((task) => task.role !== role.id || isTaskDone(data, task))]));
 
 // ---------- Trabajos de a bordo (en vuelo) ----------
 /** Preparativos antes de cada encendido: cada uno mejora las chances (los aplica server/flight.js). */

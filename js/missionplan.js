@@ -39,10 +39,27 @@ export const SITES = {
   },
 };
 
+/** Vuelos de prueba del modo Sandbox (js/flightplans.js → sandboxFlightPlan). */
+export const PROFILES = {
+  orbit: {
+    id: 'orbit', name: 'Órbita baja y regreso',
+    text: 'Subir a 200 km, dar vueltas a la Tierra, frenar y reentrar. La prueba básica de cualquier lanzador.',
+  },
+  flyby: {
+    id: 'flyby', name: 'Viaje a la órbita lunar',
+    text: 'Subir, salir hacia la Luna, entrar en su órbita y volver. Pide una etapa de espacio profundo.',
+  },
+  landing: {
+    id: 'landing', name: 'Alunizaje completo',
+    text: 'Todo el viaje: órbita lunar, alunizar a mano, despegar de la Luna y volver a la Tierra.',
+  },
+};
+
 export const DEFAULT_PLAN = Object.freeze({ site: 'tsiolkovskiy', orbit: 'low' });
 
 /** El plan de una partida (con valores por defecto si falta algo). */
 export const planOf = (data) => ({
   site: SITES[data?.plan?.site] ? data.plan.site : DEFAULT_PLAN.site,
   orbit: ORBITS[data?.plan?.orbit] ? data.plan.orbit : DEFAULT_PLAN.orbit,
+  ...(PROFILES[data?.plan?.profile] ? { profile: data.plan.profile } : {}),
 });

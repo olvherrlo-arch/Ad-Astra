@@ -54,6 +54,24 @@ Cambios en `server/` o en `js/shared.js` con `npm start`: detén el servidor (Ct
 
 **Play → Solo** abre una sala privada solo para ti y despega sola: manejas los cuatro roles.
 
+## Sandbox (modo libre)
+
+En el menú principal, **Sandbox** abre un hangar solo para ti, sin lobby ni espera, con **créditos ilimitados**:
+
+- Camina a la **terminal de suministros** (mercado): se vende todo, en todas las rarezas, y nada se agota.
+- Arma el cohete en la **consola de ensamblaje**. Las reglas de encaje y la revisión siguen: el dinero no compra física.
+- En el **tablero de misión** eliges el vuelo de prueba: órbita baja y regreso, viaje a la órbita lunar o alunizaje completo.
+- Despega desde la **plataforma de lanzamiento** y pilotea cada tramo. Las piezas pueden fallar igual que en la campaña.
+- Al terminar (o abortando desde Telemetría) vuelves al hangar con tu cohete para cambiarlo y probar otra vez.
+
+El Sandbox tiene su propia economía: no cambia el presupuesto, el progreso ni los récords de la campaña.
+
+## Personajes por rol y menú
+
+El menú usa el logo del equipo (`assets/images/logo.png`) y el boceto del transbordador (`assets/images/shuttle-sketch.png`).
+Al repartirse los roles, Ciencia, Comercio e Ingeniería aparecen con su personaje dibujado (`assets/sprites/<rol>-a.png` y
+`-b.png`; `ROLE_SKINS` en `js/character.js`). Vuelo es el astronauta, con el color y el sombrero del jugador.
+
 ## Opciones y créditos
 
 - **Options** (menú principal, ⚙ del lobby u **Opciones** en la partida): volumen general, música y efectos

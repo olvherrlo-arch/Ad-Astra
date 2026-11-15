@@ -23,7 +23,7 @@ import {
   normalizeName,
   normalizeRoomCode,
 } from '../js/shared.js';
-import { createInitialState, publicState } from './game.js';
+import { createInitialState, createSandboxState, publicState } from './game.js';
 
 // Sin I ni O para que no se confundan con 1 y 0.
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -68,9 +68,11 @@ export class RoomStore {
       }));
   }
 
-  create(identity) {
+  /** `mode` 'sandbox' = sala de una persona que empieza directo en el hangar del modo libre (sin lobby). */
+  create(identity, mode = 'campaign') {
     const room = {
       code: this.#generateCode(),
+      mode,
       hostId: '',
       players: new Map(), // en orden de llegada: el primero es quien lleva más tiempo
       isPublic: false,
@@ -86,6 +88,11 @@ export class RoomStore {
     this.#rooms.set(room.code, room);
     const player = seat(room, identity);
     room.hostId = player.id;
+    if (mode === 'sandbox') {
+      room.phase = 'playing';
+      assignRoles(room, this.pickRoles);
+      room.state = createSandboxState();
+    }
     return { room, player, rejoined: false, previousSocketId: null };
   }
 
@@ -208,6 +215,7 @@ export const publicPlayer = ({ id, name, color, hat, x, y, facing, map, role, re
 /** Versión de la sala que se envía a los navegadores. */
 export const toSnapshot = (room) => ({
   code: room.code,
+  mode: room.mode ?? 'campaign',
   hostId: room.hostId,
   isPublic: room.isPublic,
   phase: room.phase,
@@ -257,7 +265,7 @@ export const startCountdown = (io, room, seconds, pickRoles = drawRoles) => {
     room.countdown = null;
     room.phase = 'playing';
     assignRoles(room, pickRoles); // los roles se sortean al despegar
-    room.state = createInitialState(room.state.data.campaign); // la campaña de la sala se conserva
+    room.state = room.mode === 'sandbox' ? createSandboxState() : createInitialState(room.state.data.campaign); // la campaña de la sala se conserva
     broadcastRoom(io, room);
     io.to(room.code).emit(EVENTS.STATE_SYNC, publicState(room.state));
   }, 1_000);
@@ -367,7 +375,7 @@ export const registerRoomHandlers = (io, socket, store) => {
     try {
       const identity = identityFrom(payload);
       removeFromRoom(io, socket, store, 'left');
-      enterRoom(store.create(identity), ack);
+      enterRoom(store.create(identity, payload?.mode === 'sandbox' ? 'sandbox' : 'campaign'), ack);
     } catch (error) {
       ack(toAckError(error));
     }

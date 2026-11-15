@@ -21,9 +21,13 @@ const credits = (amount) => `${number(amount)} créditos`;
 
 /** Abre la economía al elegir la misión: presupuesto completo, bodega vacía y el mercado de esta partida. */
 export const openEconomy = (mission, seed) => {
-  const { event, offers, black, truth } = generateMarket(mission, seed);
+  const market = generateMarket(mission, seed);
+  const { event, black, truth } = market;
+  // Sandbox: nada se agota y el saldo no baja (server/game.js lo repone después de cada acción).
+  const offers = mission.unlimited ? market.offers.map((offer) => ({ ...offer, stock: null })) : market.offers;
   return {
     economy: {
+      ...(mission.unlimited ? { unlimited: true } : {}),
       budget: mission.budget,
       credits: mission.budget, //  lo que queda por gastar
       inventory: [], //            piezas compradas: { uid, partId, tier, quality, condition, source, sellerId?, inspected?, knownDefect?, paid }
