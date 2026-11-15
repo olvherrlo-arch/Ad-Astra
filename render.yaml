@@ -1,0 +1,11 @@
+# Configuración para publicar el juego en Render (https://render.com) con un link fijo.
+# En Render: New → Blueprint → elige este repositorio. Render lee este archivo y hace el resto.
+services:
+  - type: web
+    name: ad-astra
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true # cada vez que suben cambios a GitHub, se publica solo

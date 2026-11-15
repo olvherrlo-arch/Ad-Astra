@@ -1,0 +1,4 @@
+# Finales de línea iguales para todo el equipo (Windows, Mac o Linux)
+* text=auto eol=lf
+*.png binary
+*.jpg binary

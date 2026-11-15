@@ -1,0 +1,5 @@
+node_modules
+*.log
+# Archivos que crean Windows y OneDrive solos
+desktop.ini
+Thumbs.db

@@ -1,0 +1,19 @@
+{
+  "name": "ad-astra",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server/server.js",
+    "start": "node server/server.js",
+    "test": "node tests/physics.js && node tests/market.js && node tests/build.js && node tests/simulate.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

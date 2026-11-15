@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ad Astra</title>
+    <link rel="icon" href="assets/icons/star.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@75..125,400..700&family=Saira+Stencil+One&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <!-- Aquí se dibuja el menú o la sala (ver js/main.js). -->
+    <main id="app">
+      <!-- Se ve mientras llegan los archivos del juego; el menú lo reemplaza al cargar. -->
+      <p class="boot" role="status">Cargando Ad Astra…</p>
+    </main>
+    <script>
+      // Si a los 25 s el juego todavía no apareció, se avisa en vez de dejar la pantalla vacía.
+      setTimeout(() => {
+        const boot = document.querySelector('.boot');
+        if (boot) boot.textContent = 'El juego está tardando en cargar. Revisa tu conexión y recarga la página.';
+      }, 25000);
+    </script>
+
+    <!-- Socket.IO lo entrega el propio servidor. -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>

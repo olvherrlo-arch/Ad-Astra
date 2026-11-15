@@ -1,0 +1,86 @@
+/**
+ * PLANES DE VUELO
+ * Los tramos de cada misión y cuánto cambio de velocidad (Δv) pide cada uno.
+ * Los números no están escritos a mano: se calculan con js/physics.js a partir de las órbitas.
+ *
+ * QUÉ ES REAL Y QUÉ NO
+ * - Las órbitas (200 km sobre la Tierra, 100 km sobre la Luna) y la distancia a la Luna son reales.
+ * - El Δv de cada tramo sale de las fórmulas reales con simplificaciones: órbitas circulares en un
+ *   mismo plano y un cuerpo a la vez (cónicas enlazadas).
+ * - Las PÉRDIDAS son estimaciones redondas, no cálculos: lo que se gasta de más por pelear contra
+ *   la gravedad y el aire al subir, y por frenar despacio al alunizar.
+ * - La masa del Prisma es ficción del juego.
+ *
+ * Un tramo: { id, name, dv, body?, minTwr?, atmosphere?, needs?, release?, addMass?, note }
+ *   body + minTwr  el vehículo necesita esa relación empuje/peso en ese cuerpo para poder hacerlo
+ *   atmosphere     se despega dentro del aire: los motores rinden menos al principio
+ *   needs          capacidades (js/catalog.js → CAPABILITIES) sin las que el tramo no se puede hacer
+ *   release        capacidades cuya pieza se suelta al terminar el tramo (deja de pesar)
+ *   addMass        masa que se sube a bordo al terminar el tramo (kg)
+ */
+import { BODIES, circularVelocity, escapeBurn, hohmann, orbitSpeed } from './physics.js';
+
+const LOW_EARTH_ORBIT = 200_000; // m sobre la superficie
+const LOW_LUNAR_ORBIT = 100_000;
+const ASCENT_LOSSES = 1_600; //     m/s; estimación: gravedad y arrastre al subir, menos la ayuda de la rotación terrestre
+const LANDING_MARGIN = 1.1; //      estimación: 10 % extra por frenar contra la gravedad lunar y la maniobra final
+const PRISM_MASS = 85; //           kg; ficción
+
+const round = (value) => Math.round(value / 10) * 10;
+
+export const moonFlightPlan = () => {
+  const { earth, moon } = BODIES;
+  const leo = earth.radius + LOW_EARTH_ORBIT;
+  const llo = moon.radius + LOW_LUNAR_ORBIT;
+
+  // Tierra → Luna: media elipse desde la órbita baja hasta la distancia de la Luna.
+  const toMoon = hohmann(earth.mu, leo, moon.orbitRadius);
+  // Al llegar, la nave va más lento que la Luna: esa diferencia es la velocidad con la que "cae" hacia ella.
+  const arrivalSpeed = circularVelocity(earth.mu, moon.orbitRadius) - orbitSpeed(earth.mu, moon.orbitRadius, (leo + moon.orbitRadius) / 2);
+  const lunarCapture = escapeBurn(moon.mu, llo, arrivalSpeed);
+  // Órbita lunar → suelo: bajar el punto más bajo hasta la superficie y frenar toda la velocidad al llegar.
+  const descentEllipse = (llo + moon.radius) / 2;
+  const landing = (circularVelocity(moon.mu, llo) - orbitSpeed(moon.mu, llo, descentEllipse) + orbitSpeed(moon.mu, moon.radius, descentEllipse)) * LANDING_MARGIN;
+
+  return [
+    {
+      id: 'ascent', name: 'Subir a órbita terrestre', dv: round(circularVelocity(earth.mu, leo) + ASCENT_LOSSES),
+      body: 'earth', minTwr: 1.15, atmosphere: true,
+      note: `Velocidad de órbita a ${LOW_EARTH_ORBIT / 1000} km más unas pérdidas estimadas de ${ASCENT_LOSSES} m/s por gravedad y aire.`,
+    },
+    {
+      id: 'tli', name: 'Transferencia a la Luna', dv: round(toMoon.dv1),
+      note: `Un encendido que estira la órbita hasta la distancia de la Luna. El viaje dura unos ${Math.round(toMoon.time / 86_400)} días.`,
+    },
+    {
+      id: 'loi', name: 'Entrar en órbita lunar', dv: round(lunarCapture), release: ['relay'],
+      note: 'Frenar para que la Luna atrape a la nave. Aquí se suelta el satélite repetidor, si se lleva.',
+    },
+    {
+      id: 'descent', name: 'Alunizar en el lado oculto', dv: round(landing),
+      body: 'moon', minTwr: 1.3, needs: ['landing-gear', 'landing-engine'],
+      note: 'Bajar de la órbita y frenar hasta posarse. Sin aire, todo el frenado lo hace el motor.',
+    },
+    {
+      id: 'surface', name: 'Encontrar y cargar el Prisma', dv: 0, needs: ['prism-scan', 'prism-cargo'], addMass: PRISM_MASS,
+      note: 'No gasta combustible, pero el Prisma suma masa para el viaje de vuelta.',
+    },
+    {
+      id: 'liftoff', name: 'Despegar de la Luna', dv: round(landing), body: 'moon', minTwr: 1.2,
+      note: 'Lo mismo que alunizar, al revés.',
+    },
+    {
+      id: 'tei', name: 'Volver hacia la Tierra', dv: round(lunarCapture),
+      note: 'Salir de la órbita lunar rumbo a la Tierra.',
+    },
+    {
+      id: 'reentry', name: 'Reentrada', dv: 0, needs: ['heatshield'],
+      note: 'El aire frena a la cápsula: no hace falta combustible, pero sí escudo térmico.',
+    },
+  ];
+};
+
+export const FLIGHT_PLANS = { moon: moonFlightPlan };
+
+/** Δv total que pide un plan de vuelo. */
+export const totalDeltaV = (legs) => legs.reduce((sum, leg) => sum + leg.dv, 0);
