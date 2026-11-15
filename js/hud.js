@@ -2,16 +2,17 @@
  * HUD DEL LOBBY (lo que se ve encima de la nave)
  * - Abajo izquierda: "Reglas" de la partida, en vivo.
  * - Arriba derecha: chat (con aviso de mensajes nuevos) y ajustes (volumen, controles, salir).
- * - Abajo centro: la tarjeta de embarque: puerta (código, se puede ocultar), tripulación, rol,
+ * - Abajo centro: la tarjeta de embarque: puerta (código, se puede ocultar), tripulación,
  *   pública/privada y Despegar (el anfitrión) o Listo (los demás).
- * - Sobre la tarjeta: el panel de roles (quién es qué y quién ya está listo).
+ *   Los roles no se ven aquí: se sortean al despegar y se revelan con js/rolereveal.js.
  * - Abajo derecha: Personalizar (se activa junto al vestidor).
  * - Centro: cuenta regresiva.
  */
 import { mountChat } from './chat.js';
-import { getMe, isHost, leaveRoom, on, session, setPrivacy, setReady, setRole, startGame } from './connection.js';
+import { getMe, isHost, leaveRoom, on, session, setPrivacy, setReady, startGame } from './connection.js';
 import { openCustomize } from './customize.js';
-import { GAME_SETTINGS, MAX_PLAYERS, ROLES, colorHex, formatSetting, roleName, startBlocker } from './shared.js';
+import { openTutorialLibrary } from './tutorial.js';
+import { GAME_SETTINGS, formatSetting, startBlocker } from './shared.js';
 import { getSoundPrefs, setSoundPrefs, sounds } from './sound.js';
 
 const ICONS = {
@@ -48,17 +49,10 @@ const HUD_HTML = `
     <li><kbd>E</kbd> junto al vestidor: personalizar</li>
     <li><kbd>Enter</kbd>: chat <kbd>Esc</kbd>: cerrar</li>
   </ul>
+  <button class="hud-tutorials">Tutoriales</button>
   <button class="hud-leave">Abandonar sala</button>
 </section>
 
-<section class="hud-roles" id="hud-roles" hidden aria-label="Roles de la tripulación">
-  <header class="hud-roles-head">
-    <h2>Roles de la tripulación</h2>
-    <button class="hud-roles-close" aria-label="Cerrar roles">✕</button>
-  </header>
-  <div class="hud-roles-list"></div>
-  <p class="hud-roles-note"></p>
-</section>
 
 <div class="hud-bottom">
   <div class="hud-code">
@@ -69,10 +63,6 @@ const HUD_HTML = `
   <div class="hud-pass-crew">
     <span class="hud-pass-label">Tripulación</span>
     <div class="hud-count">${ICONS.person}<span></span></div>
-  </div>
-  <div class="hud-pass-role">
-    <span class="hud-pass-label">Rol</span>
-    <button class="hud-role" aria-expanded="false" aria-controls="hud-roles"></button>
   </div>
   <button class="hud-privacy"></button>
   <button class="hud-start">Despegar</button>
@@ -94,14 +84,11 @@ export const mountHud = (container) => {
   const privacy = $('.hud-privacy');
   const start = $('.hud-start');
   const ready = $('.hud-ready');
-  const roleButton = $('.hud-role');
-  const rolesPanel = $('.hud-roles');
   const customizeButton = $('.hud-customize');
   const countdown = $('.hud-countdown');
   const unread = $('.hud-unread');
   let codeHidden = false;
   let closeCustomize = null;
-  let hadRole = Boolean(getMe()?.role);
 
   // ---------- Paneles de arriba a la derecha ----------
   const chat = mountChat($('.hud-chat'), { onClose: () => setPanel('chat', false) });
@@ -123,70 +110,12 @@ export const mountHud = (container) => {
       const open = !isPanelOpen(name);
       setPanel('chat', false);
       setPanel('settings', false);
-      setRolesOpen(false);
       setPanel(name, open);
     });
   });
 
-  // ---------- Roles y Listo ----------
-  const setRolesOpen = (open) => {
-    rolesPanel.hidden = !open;
-    roleButton.setAttribute('aria-expanded', String(open));
-    // En ventanas angostas el panel de roles y el de reglas se pisan: se cierra el de reglas.
-    if (open && window.innerWidth < 1180) setOptionsOpen(false);
-  };
-  $('.hud-roles-close').addEventListener('click', () => setRolesOpen(false));
-  roleButton.addEventListener('click', () => {
-    const open = rolesPanel.hidden;
-    setPanel('chat', false);
-    setPanel('settings', false);
-    setRolesOpen(open);
-  });
+  // ---------- Listo ----------
   ready.addEventListener('click', () => setReady(!getMe()?.ready));
-
-  /** Una tarjeta por rol: quién lo tiene y si ya está listo. Clic para tomarlo o soltarlo. */
-  const renderRoles = () => {
-    const { room } = session;
-    const me = getMe();
-    const editable = room.phase === 'lobby';
-    $('.hud-roles-list').replaceChildren(
-      ...ROLES.map((role) => {
-        const holder = room.players.find((p) => p.role === role.id);
-        const mine = holder?.id === me?.id;
-        const card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'role-card';
-        card.setAttribute('aria-pressed', String(mine));
-        card.disabled = !editable || Boolean(holder && !mine);
-
-        const name = Object.assign(document.createElement('strong'), { textContent: role.name });
-        const duty = Object.assign(document.createElement('span'), { className: 'role-duty', textContent: role.duty });
-        const who = document.createElement('span');
-        who.className = 'role-who';
-        if (holder) {
-          const dot = document.createElement('i');
-          dot.style.background = colorHex(holder.color);
-          const isHostHolder = holder.id === room.hostId;
-          const status = isHostHolder ? 'anfitrión' : holder.ready ? '✓ listo' : 'eligiendo';
-          who.append(dot, `${mine ? 'Tú' : holder.name} · ${status}`);
-          who.classList.toggle('ready', isHostHolder || holder.ready);
-        } else {
-          who.textContent = 'Libre';
-          who.classList.add('free');
-        }
-        card.append(name, duty, who);
-        card.title = mine ? 'Clic para soltar este rol' : holder ? `Lo tiene ${holder.name}` : 'Clic para tomar este rol';
-        card.addEventListener('click', () => setRole(mine ? null : role.id));
-        return card;
-      }),
-    );
-
-    const blocker = startBlocker(room);
-    const demo = room.players.length < MAX_PLAYERS
-      ? ' Con menos de 4 tripulantes es modo demo: en la misión, los roles libres los maneja cualquiera.'
-      : '';
-    $('.hud-roles-note').textContent = `${blocker ? `Para despegar: ${blocker}.` : 'Tripulación lista para despegar.'}${demo}`;
-  };
 
   // ---------- Ajustes ----------
   const volume = $('[data-volume]');
@@ -197,6 +126,10 @@ export const mountHud = (container) => {
   volume.addEventListener('input', () => setSoundPrefs({ volume: Number(volume.value) }));
   mute.addEventListener('change', () => setSoundPrefs({ muted: mute.checked }));
   $('.hud-leave').addEventListener('click', leaveRoom);
+  $('.hud-tutorials').addEventListener('click', () => {
+    setPanel('settings', false);
+    openTutorialLibrary();
+  });
 
   // ---------- Opciones (izquierda) ----------
   const setOptionsOpen = (open) => {
@@ -252,12 +185,6 @@ export const mountHud = (container) => {
     count.classList.toggle('ready', blocker === null);
     count.title = blocker ?? 'Ya pueden despegar';
 
-    roleButton.textContent = me?.role ? roleName(me.role) : 'Elegir rol';
-    roleButton.classList.toggle('empty', !me?.role);
-    renderRoles();
-    // Recién elegiste rol: el panel se cierra solo para que vuelvas a ver la sala.
-    if (!hadRole && me?.role) setRolesOpen(false);
-    hadRole = Boolean(me?.role);
 
     privacy.textContent = room.isPublic ? 'Pública' : 'Privada';
     privacy.classList.toggle('public', room.isPublic);
@@ -269,10 +196,10 @@ export const mountHud = (container) => {
     start.title = blocker ?? '';
 
     ready.hidden = host;
-    ready.disabled = !me?.role || room.phase !== 'lobby';
+    ready.disabled = room.phase !== 'lobby';
     ready.setAttribute('aria-pressed', String(Boolean(me?.ready)));
     ready.textContent = me?.ready ? '✓ Listo' : 'Listo';
-    ready.title = me?.role ? (me.ready ? 'Clic para avisar que aún no estás listo' : 'Avisa al anfitrión que ya puede despegar') : 'Primero elige un rol';
+    ready.title = me?.ready ? 'Clic para avisar que aún no estás listo' : 'Avisa al anfitrión que ya puede despegar';
 
     $('.hud-options-list').replaceChildren(
       ...GAME_SETTINGS.map((setting) => {
@@ -308,13 +235,11 @@ export const mountHud = (container) => {
     else {
       setPanel('chat', false);
       setPanel('settings', false);
-      setRolesOpen(false);
     }
   };
   window.addEventListener('keydown', onKeyDown);
 
   render();
-  setRolesOpen(!getMe()?.role); // al entrar sin rol, el panel ya está abierto para elegir
   const offs = [
     on('room', render),
     on('countdown', showCountdown),
@@ -337,7 +262,6 @@ export const mountHud = (container) => {
     openCustomize: showCustomize,
     openChat: () => {
       setPanel('settings', false);
-      setRolesOpen(false);
       setPanel('chat', true);
     },
     destroy: () => {

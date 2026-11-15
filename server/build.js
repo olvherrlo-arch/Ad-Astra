@@ -5,7 +5,7 @@
  * dónde están en js/assembly.js (las mismas que usa la pantalla para avisar antes de soltar).
  */
 import {
-  BUILD_STAGES, addStageProblem, canPlace, emptyStage, findInRocket, normalizeFill, partFinder, stageProblem,
+  BUILD_STAGES, addStageProblem, canPlace, emptyStage, findInRocket, normalizeFill, partFinder, replaceCheck, stageProblem,
   withPart, withoutPart,
 } from '../js/assembly.js';
 
@@ -17,6 +17,8 @@ export const isBuildAction = (action) => {
       return uid(action.uid) && Number.isInteger(action.stage);
     case 'build:remove':
       return uid(action.uid);
+    case 'build:replace':
+      return uid(action.uid) && uid(action.with);
     case 'build:addStage':
     case 'build:undo':
       return true;
@@ -67,6 +69,13 @@ export const applyBuildAction = (rocket, inventory, action, actor, stageId) => {
       const check = canPlace(lifted, find, action.uid, action.stage);
       if (!check.ok) return { error: check.reason };
       return { rocket: withPart(lifted, find, action.uid, action.stage, check.slot), log: null };
+    }
+
+    case 'build:replace': {
+      // Cambiar una pieza por otra en el mismo lugar, en un solo paso: o se hace entero, o nada.
+      const swap = replaceCheck(rocket, find, action.uid, action.with);
+      if (!swap.ok) return { error: swap.reason };
+      return { rocket: swap.rocket, log: `${actor.name} cambió ${find(action.uid).name} por ${find(action.with).name} en la etapa ${swap.stage + 1}.` };
     }
 
     case 'build:addStage': {

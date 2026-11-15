@@ -45,6 +45,15 @@ export const sounds = {
     tone({ from: 140, to: 620, duration: 0.9, type: 'sawtooth', gain: 0.05 });
     tone({ from: 520, to: 1040, duration: 0.5, type: 'triangle', gain: 0.1, delay: 0.35 });
   },
+  /** Revelación de roles: 'drum' = redoble de suspenso; 'hit' = golpe al dar vuelta tu carta. */
+  reveal: (kind) => {
+    if (kind === 'drum') {
+      for (let i = 0; i < 6; i++) tone({ from: 110, to: 90, duration: 0.12, type: 'triangle', gain: 0.12, delay: i * 0.28 });
+    } else {
+      tone({ from: 70, to: 45, duration: 0.5, type: 'sine', gain: 0.25 });
+      tone({ from: 660, to: 990, duration: 0.35, type: 'triangle', gain: 0.1, delay: 0.08 });
+    }
+  },
   /** Se pasa una página de la historia. */
   page: () => tone({ from: 420, to: 300, duration: 0.1, type: 'triangle', gain: 0.07 }),
   /** Mensaje nuevo en el chat. */

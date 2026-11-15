@@ -7,13 +7,14 @@
  * - En el lobby, perder la conexión es salir. En plena misión, el lugar (y el rol) queda guardado:
  *   el jugador vuelve con su `seatToken` (recarga, corte de red) o desde el mismo navegador.
  */
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import {
   ERROR_MESSAGES,
   EVENTS,
   LOBBY_MAP,
   MAX_PLAYERS,
   PLAYER_COLORS,
+  ROLES,
   ROOM_CODE_LENGTH,
   defaultSettings,
   isColorId,
@@ -44,9 +45,10 @@ const toAckError = (error) => {
 export class RoomStore {
   #rooms = new Map();
 
-  constructor({ countdownSeconds, rejoinGraceMs }) {
+  constructor({ countdownSeconds, rejoinGraceMs, pickRoles = drawRoles }) {
     this.countdownSeconds = countdownSeconds;
     this.rejoinGraceMs = rejoinGraceMs;
+    this.pickRoles = pickRoles; // las pruebas lo reemplazan para saber quién queda con qué rol
   }
 
   get(code) {
@@ -213,9 +215,30 @@ export const toSnapshot = (room) => ({
 
 export const broadcastRoom = (io, room) => io.to(room.code).emit(EVENTS.ROOM_UPDATE, toSnapshot(room));
 
+// ---------- Roles al azar ----------
+
+/**
+ * Sortea los roles: devuelve un id de ROLES por jugador, sin repetir (mezcla de Fisher-Yates).
+ * Con menos de 4 jugadores, los roles que sobran quedan libres (modo demo).
+ */
+export const drawRoles = (players) => {
+  const ids = ROLES.map((role) => role.id);
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  return players.map((_player, index) => ids[index] ?? null);
+};
+
+const assignRoles = (room, pickRoles) => {
+  const crew = [...room.players.values()];
+  const picked = pickRoles(crew);
+  crew.forEach((player, index) => { player.role = picked[index] ?? null; });
+};
+
 // ---------- Cuenta regresiva ----------
 
-export const startCountdown = (io, room, seconds) => {
+export const startCountdown = (io, room, seconds, pickRoles = drawRoles) => {
   room.phase = 'countdown';
   let remaining = seconds;
   io.to(room.code).emit(EVENTS.COUNTDOWN, { seconds: remaining });
@@ -230,6 +253,7 @@ export const startCountdown = (io, room, seconds) => {
     clearInterval(timer);
     room.countdown = null;
     room.phase = 'playing';
+    assignRoles(room, pickRoles); // los roles se sortean al despegar
     room.state = createInitialState(room.state.data.campaign); // la campaña de la sala se conserva
     broadcastRoom(io, room);
     io.to(room.code).emit(EVENTS.STATE_SYNC, publicState(room.state));
@@ -282,11 +306,12 @@ const holdSeat = (io, socket, store, room, player) => {
   broadcastRoom(io, room);
 };
 
-/** Al volver al lobby se van los lugares que quedaron sin conexión, y todos vuelven a marcar Listo. */
+/** Al volver al lobby se van los lugares sin conexión, los roles se borran (se sortean de nuevo) y todos vuelven a marcar Listo. */
 export const returnToLobby = (io, store, room) => {
   room.phase = 'lobby';
   for (const player of [...room.players.values()]) {
     player.ready = false;
+    player.role = null;
     if (player.connected) continue;
     room.players.delete(player.id);
     io.to(room.code).emit(EVENTS.PLAYER_LEFT, { player: publicPlayer(player), reason: 'disconnected' });

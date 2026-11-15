@@ -18,6 +18,8 @@ import { mountDesk } from './desk.js';
 import { getMission } from './missions.js';
 import { mountNarrative } from './narrative.js';
 import { PROLOGUE } from './story.js';
+import { openTutorialLibrary } from './tutorial.js';
+import { playCinematic } from './cinematic.js';
 
 const TOAST_MS = 3_500;
 
@@ -30,6 +32,7 @@ const GAME_HTML = `
     <span class="hud-brand">Ad Astra<img src="assets/icons/star.svg" alt="" /></span>
     <p class="mission-title"><span></span><strong></strong></p>
     <span class="game-room">Sala <strong></strong></span>
+    <button class="game-help" type="button">Tutoriales</button>
     <button class="game-end" hidden>Volver al lobby</button>
   </header>
   <div class="mission-scene"></div>
@@ -67,6 +70,9 @@ export const mountGame = (container) => {
 
     // Cambió la escena: se desarma la pantalla anterior y se arma la nueva.
     const view = VIEWS[data.scene];
+    if (mountedView === mountNarrative && data.scene === 'mission') {
+      playCinematic({ art: 'rocket', camera: 'in', kicker: titleFor(data)[1], title: 'A preparar la nave', text: 'Planear, comprar, construir. Después, despegar.' });
+    }
     if (view && view !== mountedView) {
       unmountView?.();
       sceneBox.replaceChildren();
@@ -85,6 +91,7 @@ export const mountGame = (container) => {
   };
 
   endButton.addEventListener('click', endGame);
+  $('.game-help').addEventListener('click', openTutorialLibrary);
 
   render();
   const offs = [on('state', render), on('room', render), on('rejected', showToast)];

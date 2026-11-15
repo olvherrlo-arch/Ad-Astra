@@ -599,8 +599,7 @@ export const mountLobby = (container) => {
   const boardTexts = () => {
     const { room } = session;
     let status = 'LISTOS';
-    if (room.players.some((p) => !p.role)) status = 'ELIGE ROL';
-    else if (startBlocker(room)) status = 'ESPERANDO';
+    if (startBlocker(room)) status = 'ESPERANDO';
     if (countdownSeconds) status = `DESPEGA ${countdownSeconds}`;
     else if (room.phase === 'playing') status = 'EN VUELO';
     return [hud.isCodeHidden() ? '····' : room.code, `${room.players.length} DE ${room.maxPlayers}`, status];

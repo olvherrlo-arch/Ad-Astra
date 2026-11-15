@@ -8,6 +8,8 @@ import { mountGame } from './game.js';
 import { mountLobby } from './lobby.js';
 import { mountMenu } from './menu.js';
 import { sounds } from './sound.js';
+import { startTutorials } from './tutorial.js';
+import { showRoleReveal } from './rolereveal.js';
 
 const SCREENS = { menu: mountMenu, lobby: mountLobby, game: mountGame };
 const app = document.getElementById('app');
@@ -37,6 +39,8 @@ const launch = () => {
   sounds.launch();
   setTimeout(() => show(screenForSession()), 700);
   setTimeout(() => fade.remove(), 1_700);
+  // Los roles se sortearon al despegar: cada quien ve el suyo.
+  setTimeout(showRoleReveal, 1_400);
 };
 
 /** Aviso mientras se intenta volver a la sala tras un corte de conexión. */
@@ -59,3 +63,4 @@ on('enter', showReconnecting);
 on('leave', showReconnecting);
 
 show('menu');
+startTutorials();

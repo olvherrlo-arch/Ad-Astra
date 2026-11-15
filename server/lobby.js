@@ -1,7 +1,7 @@
 /**
  * LOBBY (servidor)
  * Lo que pasa mientras esperan en la nave:
- * - Todos: moverse, personalizarse (color y sombrero), elegir rol y marcar Listo.
+ * - Todos: moverse, personalizarse (color y sombrero) y marcar Listo. Los roles se sortean al despegar.
  * - Solo el anfitrión: pública/privada, reglas de la partida, expulsar/bloquear, START y volver al lobby.
  */
 import {
@@ -9,7 +9,6 @@ import {
   clampToFloor,
   isColorId,
   isHatId,
-  isRoleId,
   normalizeSetting,
   startBlocker,
 } from '../js/shared.js';
@@ -63,22 +62,10 @@ export const registerLobbyHandlers = (io, socket, store) => {
     broadcastRoom(io, room);
   });
 
-  /** Elegir rol: cada rol lo ocupa un solo jugador. Cambiar de rol quita el Listo. */
-  socket.on(EVENTS.PLAYER_SET_ROLE, (roleId) => {
-    const context = current();
-    if (!context || context.room.phase !== 'lobby') return;
-    const { room, me } = context;
-    if (roleId !== null && !isRoleId(roleId)) return;
-
-    const takenByOther = roleId !== null && [...room.players.values()].some((p) => p.id !== me.id && p.role === roleId);
-    if (!takenByOther && me.role !== roleId) Object.assign(me, { role: roleId, ready: false });
-    broadcastRoom(io, room); // también si no se pudo: así quien lo pidió ve quién lo tiene
-  });
-
   socket.on(EVENTS.PLAYER_SET_READY, (ready) => {
     const context = current();
     if (!context || context.room.phase !== 'lobby') return;
-    context.me.ready = Boolean(ready) && context.me.role !== null;
+    context.me.ready = Boolean(ready);
     broadcastRoom(io, context.room);
   });
 
@@ -110,10 +97,10 @@ export const registerLobbyHandlers = (io, socket, store) => {
     removeFromRoom(io, targetSocket, store, reason);
   }));
 
-  /** Despegar: todos con rol y, salvo el anfitrión, todos con Listo. */
+  /** Despegar: todos, salvo el anfitrión, con Listo. Los roles se sortean al terminar la cuenta. */
   socket.on(EVENTS.GAME_START, hostOnly(({ room }) => {
     if (room.phase !== 'lobby' || startBlocker(toSnapshot(room)) !== null) return;
-    startCountdown(io, room, store.countdownSeconds);
+    startCountdown(io, room, store.countdownSeconds, store.pickRoles);
   }));
 
   socket.on(EVENTS.GAME_END, hostOnly(({ room }) => {

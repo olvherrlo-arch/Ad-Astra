@@ -39,8 +39,9 @@ export const HATS = [
 
 // ---------- Roles de la tripulación ----------
 /**
- * Cada rol lo ocupa un solo jugador. Solo cambia lo que cada quien puede hacer en la misión:
- * el color y el sombrero son apariencia y no dan ninguna ventaja.
+ * Cada rol lo ocupa un solo jugador y se SORTEA al despegar (server/rooms.js → drawRoles): en el lobby
+ * nadie tiene rol. Solo cambia lo que cada quien puede hacer en la misión: el color y el sombrero
+ * son apariencia y no dan ninguna ventaja.
  */
 export const ROLES = [
   { id: 'scientist', name: 'Ciencia', duty: 'Investiga el destino, elige instrumentos e interpreta lo que se descubre.' },
@@ -68,8 +69,6 @@ export const canActAs = (players, playerId, roleId) => {
 export const startBlocker = ({ players, hostId }) => {
   const names = (list) => list.map((p) => p.name).join(', ');
   if (players.length < MIN_PLAYERS_TO_START) return `Se necesitan ${MIN_PLAYERS_TO_START} jugadores`;
-  const withoutRole = players.filter((p) => !p.role);
-  if (withoutRole.length > 0) return `Falta elegir rol: ${names(withoutRole)}`;
   const notReady = players.filter((p) => p.id !== hostId && !p.ready);
   if (notReady.length > 0) return `Falta marcar Listo: ${names(notReady)}`;
   return null;
@@ -139,8 +138,7 @@ export const EVENTS = {
   ROOMS_LIST: 'rooms:list', //           → responde [{ code, hostName, players, maxPlayers }] (salas públicas)
   PLAYER_MOVE: 'player:move', //         { x, y, facing, moving }
   PLAYER_CUSTOMIZE: 'player:customize', // { color?, hat? }
-  PLAYER_SET_ROLE: 'player:setRole', //   id de ROLES, o null para soltarlo (solo en el lobby)
-  PLAYER_SET_READY: 'player:setReady', // true / false (necesitas tener rol)
+  PLAYER_SET_READY: 'player:setReady', // true / false
   ROOM_SET_PRIVACY: 'room:setPrivacy', //  true = pública   (solo anfitrión)
   ROOM_SET_SETTING: 'room:setSetting', //  { key, value }    (solo anfitrión)
   ROOM_KICK: 'room:kick', //             { playerId, ban }  (solo anfitrión)

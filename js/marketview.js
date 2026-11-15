@@ -54,6 +54,7 @@ export const mountMarket = (container) => {
   const tabs = /** @type {HTMLElement[]} */ ([...container.querySelectorAll('[role="tab"]')]);
   let tab = 'market';
   let category = 'all';
+  const openParts = new Set(); // fichas abiertas (se conservan al redibujar)
   const quantities = new Map(); // id de oferta → cuántas quiere comprar
 
   const economy = () => session.state?.data.economy;
@@ -111,10 +112,22 @@ export const mountMarket = (container) => {
     const cards = PARTS.filter((part) => category === 'all' || part.category === category).map((part) => {
       const offers = eco.offers.filter((offer) => offer.partId === part.id);
       const columns = versionColumns(part);
-      const card = el('article', 'part-card');
-      const head = el('header');
-      head.append(el('h4', '', part.name), el('span', 'part-kind', CATEGORIES.find((c) => c.id === part.category).name));
-      card.append(head, el('p', 'part-desc', part.description));
+      // Ficha compacta: nombre, para qué sirve y desde cuánto cuesta. Las versiones, a pedido.
+      const requested = offers.some((offer) => (eco.requests[offer.id] ?? []).length > 0);
+      const card = /** @type {HTMLDetailsElement} */ (el('details', `part-card${requested ? ' requested' : ''}`));
+      card.open = openParts.has(part.id) || requested;
+      card.addEventListener('toggle', () => (card.open ? openParts.add(part.id) : openParts.delete(part.id)));
+      const cheapest = Math.min(...offers.map((offer) => offer.price));
+      const common = resolvePart(offers[0]);
+      const headline = versionColumns(part).slice(0, 2).map((column) => `${column.label} ${column.value(common)}`).join(' · ');
+      const head = el('summary');
+      head.append(
+        el('h4', '', part.name),
+        el('span', 'part-kind', CATEGORIES.find((c) => c.id === part.category).name),
+        el('span', 'part-line', part.description),
+        el('span', 'part-from', `desde ${credits(cheapest)} · ${headline}${requested ? ' · pedida' : ''}`),
+      );
+      card.append(head);
       const facts = fixedFacts(part);
       if (facts.length > 0) card.append(el('p', 'part-facts', facts.join(' · ')));
 

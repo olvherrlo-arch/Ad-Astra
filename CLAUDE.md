@@ -6,13 +6,14 @@ El equipo habla español: textos del juego, comentarios y respuestas en español
 ## Correr y probar
 - `npm run dev`: servidor + página en http://localhost:3000 (node --watch).
 - `npm test`: 101 pruebas de física, catálogo y cohete (tests/physics.js), 56 del mercado (tests/market.js),
-  54 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red) y 84 con jugadores
-  simulados (tests/simulate.js). Las cuatro deben terminar en "TODO OK ✅".
+  54 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 41 del vuelo
+  (tests/flight.js, vuela 60 partidas con semillas fijas) y 84 con jugadores simulados (tests/simulate.js).
+  Todas deben terminar en "TODO OK ✅".
   En simulate.js, `act(cliente, acción, aceptar)` espera la respuesta del servidor; pasa `aceptar` cuando
   otro jugador acaba de actuar (si no, puede tomar un estado viejo que venía en camino).
 - Vista previa propia: config "verificar" (puerto 3200) en `.claude/launch.json` (el 3000 suele estar ocupado por `npm run dev`).
 - Revisión de tipos (JS con JSDoc, sin compilar): usa el TypeScript de la copia vieja del proyecto:
-  `node "C:/Users/regot/OneDrive/Desktop/Ad Astra/node_modules/typescript/bin/tsc" --allowJs --checkJs --noEmit --skipLibCheck --module nodenext --moduleResolution nodenext --target es2022 --lib es2022,dom,dom.iterable server/server.js tests/simulate.js tests/physics.js tests/market.js tests/build.js js/main.js`
+  `node "C:/Users/regot/OneDrive/Desktop/Ad Astra/node_modules/typescript/bin/tsc" --allowJs --checkJs --noEmit --skipLibCheck --module nodenext --moduleResolution nodenext --target es2022 --lib es2022,dom,dom.iterable server/server.js tests/simulate.js tests/physics.js tests/market.js tests/build.js tests/flight.js js/main.js`
 - Se puede previsualizar con la config "ad-astra-test" (puerto 3100) del launch.json de la carpeta vieja `Ad Astra`.
 
 ## Estructura (HTML/CSS/JS sin build, Node + Socket.IO)
@@ -62,8 +63,61 @@ Juego cooperativo de misiones espaciales, 4 roles (`ROLES` en shared.js): Cienci
   vive en `state.secret.undo`. Una etapa puede tener varias herramientas en pestañas (`tool: ['builder','market']`).
   Si la ventana de Claude está minimizada no hay capturas: para ver un canvas, mandarlo con `toBlob` a un
   receptor local temporal y leer el PNG.
-- Siguen: 6 vuelo, 7 evaluación y progreso, 8 misiones 2 y 3.
-  No marcar una misión como completada hasta la fase 7.
+- Fase 6 HECHA: `server/flight.js` vuela la nave tramo por tramo con sus números VERDADEROS (`state.secret.ship`,
+  nunca se envía; lo público es `state.data.flight`). Acciones: `flight:burn {dv}` (Vuelo; error de guiado
+  ±1,5 %, ±0,5 % con computadora avanzada, ×1,5 sin propulsores, ×2 sin señal), `flight:scan` (Ciencia, en
+  superficie), `flight:power` (Ingeniería: normal/saving), `flight:proceed` (Vuelo, tramos sin Δv),
+  `flight:resolve {option, role}` (emergencias: cada salida pide roles; reparar = Ingeniería + Comercio paga).
+  Fallas: motor en cada encendido, antena tras la transferencia, patas al alunizar, espectrómetro al buscar;
+  usan la probabilidad verdadera (defectos del mercado negro incluidos). Energía por tramo (horas y sol en
+  js/flightplans.js; primero la sombra). Las etapas Vuelo/Superficie/Regreso solo avanzan con sus tramos
+  hechos; si el vuelo falla se salta a Evaluación. Al volver con el Prisma: Luna completada y Marte disponible.
+  Pantalla: `js/flightview.js` (mapa, panel por rol, telemetría, emergencias, resultado y lecciones).
+  Balance comprobado: el cohete de referencia volado con cuidado vuelve 29 de 30 veces; pasándose 5 % por
+  encendido, 0 de 30.
+- Siguen: 7 evaluación con nota (S a D) y progreso, 8 misiones 2 y 3 (Marte aún no tiene etapas: la estrella
+  aparece disponible pero dice "todavía no está construida").
+
+## Actualización de experiencia (UPDATE MASTER PROMPT del usuario: tutoriales, cinemáticas, constructor animado, UI)
+Orden pedido: 1 UI más simple → 2 tutoriales → 3 cinemáticas → 4 constructor animado → 5 pulido.
+- P1 HECHA (parcial): mesa de misión con "Tu tarea", fila de equipo (`.team-chip`, clic = visto bueno) y barra fija
+  con UNA acción principal (`.stage-confirm` / `.stage-next`, la principal lleva `.primary`); tareas de todos en
+  `<details>`. Constructor: a la vista solo Δv vs misión, empuje/peso, masa, costo, resumen del plan y revisión;
+  lo demás en "Ver detalles técnicos". Mercado: fichas `<details>` cerradas con "desde X cr" (se abren solas si
+  alguien la pidió). Falta: sistema de botones unificado y feedback de éxito animado.
+- P2 HECHA: tutoriales. `js/tutorial.js` (motor: panel que busca lugar libre sin tapar paneles abiertos ni lo
+  resaltado, borde que late en `.tut-target`, pasos que esperan la acción con `waitFor`, saltar, biblioteca con
+  repetir y "no mostrar más"; avance guardado en localStorage `adastra.tutorials`; cada quien ve los suyos, no
+  sincroniza a otros) y `js/tutorials.js` (10 módulos: básico del lobby, misión, cooperar, mercado, mercado negro
+  (solo Comercio), constructor, física, despegue, vuelo y emergencias; pasos con `roles` por rol).
+  Botón "Tutoriales" en la barra de la partida y en Ajustes del lobby.
+- P3 HECHA: cinemáticas. `js/narrative.js` (pantalla de cine: dos lienzos con fundido, cámara lenta por escena
+  `camera: in|out|left|right|up`, texto que se escribe solo y se completa con clic/Espacio, `speaker`, `list` que
+  aparece punto por punto; respeta "reducir movimiento"; el anfitrión puede saltar con `story:skip`, con
+  confirmación). Informe de la Luna ampliado (cara oculta y repetidor, qué llevar). Ilustración nueva `relay`.
+  `js/cinematic.js`: tomas cortas a pantalla completa al pasar a Vuelo, Superficie, Regreso, Evaluación (éxito o
+  fallo) y al empezar la misión; solo visuales, se cierran solas o con clic.
+- P4 HECHA: constructor animado (js/builder.js). Torre de ensamblaje con brazos por etapa y plataforma (`drawTower`,
+  decorado). Tocar una pieza de la bodega la elige (`chosenHold`) y dibuja fantasmas en el lugar EXACTO donde
+  encajaría en cada etapa (`findGhosts`: arma el cohete "como si" con withPart y mide), ✗ con motivo donde no;
+  tocar el fantasma la pone. Animaciones (`trackChanges`): comparan el cohete del servidor con el cuadro anterior:
+  pieza nueva entra volando con rebote y "clac", la movida vuela desde su lugar viejo, la quitada sale; nunca
+  dibujan algo que no está instalado. Reemplazo atómico `build:replace {uid, with}` (js/assembly.js
+  `replaceCheck`) con comparación ▲▼ en la ficha. Borde y nombre al pasar el mouse.
+  Ojo al verificar: con el panel de navegador oculto no hay requestAnimationFrame; se puede simular con setTimeout.
+- P5 (pulido): pendiente.
+
+## Cambios pedidos después (vigentes)
+- Roles AL AZAR: ya no se eligen en el lobby (se quitó `player:setRole`). Al terminar la cuenta regresiva,
+  server/rooms.js `drawRoles` (Fisher-Yates con crypto) reparte un rol distinto a cada uno; con menos de 4, los
+  que sobran quedan libres. Al volver al lobby se borran. Listo ya no pide rol. Las pruebas usan
+  `createGameServer({ pickRoles })` para fijar quién es quién. Cinemática `js/rolereveal.js` al despegar
+  (fila con cartas boca abajo → tu rol en grande → todos los roles), estilo "revelación de roles".
+  En el lobby no hay NADA de roles (se quitaron el botón y el panel de la tarjeta de embarque).
+- Las 3 misiones empiezan desbloqueadas (`UNLOCK_ALL_MISSIONS = true` en js/missions.js). Marte y el Éxodo
+  todavía no tienen etapas: al iniciarlas dice "todavía no está construida". Reglas del prompt: aprender haciendo, tutorial por rol, saltar/repetir, no adelantar a todo
+  el equipo; texto tipo máquina de escribir que se completa con clic; animaciones que reflejan el estado REAL
+  del servidor (nunca dibujar algo que no está instalado); conservar la identidad risográfica.
 
 ## Diseño actual del lobby
 Sala de embarque de la estación, estilo risografía con las tintas del juego (azul #1f2d5c, coral #ff6b5b, dorado #f3b641,
@@ -80,8 +134,10 @@ El astronauta (assets/sprites/astronaut.png) es dibujo del usuario: no cambiarlo
   la app apaga los servidores de vista previa al rato y el link da error 502.
 - El servidor comprime los archivos de texto (gzip) y responde 304 si no cambiaron (ETag).
 - Link temporal: `cloudflared tunnel --url http://localhost:3000` (el link cambia cada vez).
-- Link fijo: GitHub + Render (`render.yaml`). La carpeta ya es repo git con todo en stage, sin commits:
-  git no tiene nombre/correo; el usuario hará el primer commit y la publicación con GitHub Desktop.
+- Repositorio PÚBLICO: https://github.com/olvherrlo-arch/ad-astra (rama main). git del proyecto ya tiene
+  nombre/correo; el inicio de sesión de GitHub quedó guardado en el administrador de credenciales de Windows,
+  así que `git push` funciona. Hacer commit y push solo cuando el usuario lo pida.
+- Link fijo: Render (`render.yaml`) desde ese repositorio (todavía no configurado).
 
 ## Forma de trabajar con este usuario
 - Prefiere que actúes directamente; manda bocetos/imágenes como referencia de diseño.

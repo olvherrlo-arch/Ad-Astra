@@ -5,7 +5,13 @@
  *   Centro     el cohete, dibujado etapa por etapa (vista esquemática, no a escala)
  *   Derecha    estadísticas en vivo, plan de vuelo y revisión antes de despegar
  *
+ * El cohete cuelga dentro de una torre de ensamblaje. Cuando una pieza se pone, entra volando desde la
+ * bodega, encaja y hace "clac"; cuando se quita, se suelta y sale. Las animaciones salen de comparar el
+ * cohete que manda el servidor con el anterior: nunca se dibuja algo que no está instalado de verdad.
+ *
  * Cómo se arma (solo quien maneja Ingeniería; los demás lo ven en vivo):
+ * - Toca una pieza de la bodega para elegirla: en el cohete aparece, en fantasma, el lugar exacto donde
+ *   encajaría en cada etapa (✓) o por qué no (✗). Toca el fantasma para ponerla.
  * - Arrastra una pieza de la bodega al cohete. Mientras la arrastras, cada etapa se marca en
  *   dorado si encaja o en coral si no, y dice por qué.
  * - O elige una etapa (clic en ella) y usa el botón "Poner" de la pieza.
@@ -16,7 +22,7 @@
  * (server/build.js) vuelve a revisar todo: aquí solo se dibuja y se mandan acciones.
  */
 import {
-  BUILD_STAGES, addStageProblem, canPlace, findInRocket, installedUids, mountPoints, mountsUsed, partFinder,
+  BUILD_STAGES, addStageProblem, canPlace, findInRocket, installedUids, mountPoints, mountsUsed, partFinder, replaceCheck, withPart,
   stageFuel, stageProblem, toPhysicsStages, withoutPart,
 } from './assembly.js';
 import { PROPELLANTS, getPart, resolvePart } from './catalog.js';
@@ -34,6 +40,11 @@ const EMPTY_STAGE_HEIGHT = 46;
 const NEW_STAGE_HEIGHT = 40;
 const DRAG_THRESHOLD = 6;
 const SLOT_NAMES = { core: 'Cuerpo', engines: 'Motores', mounted: 'Equipo' };
+const FLY_MS = 520; //    lo que tarda una pieza en llegar a su lugar
+const LOCK_MS = 300; //   el "clac" al encajar
+const LEAVE_MS = 420; //  lo que tarda en salir una pieza quitada
+const easeOutBack = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2;
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const BUILDER_HTML = `
 <section class="builder" aria-label="Constructor de cohetes">
@@ -81,6 +92,7 @@ export const mountBuilder = (container) => {
   const statsBox = $('.builder-stats');
 
   let activeStage = 0;
+  let detailsOpen = false; // "Ver detalles técnicos" (se conserva al redibujar)
   /** @type {string | null} */
   let selectedUid = null;
   /** @type {number | null} */
@@ -91,6 +103,18 @@ export const mountBuilder = (container) => {
   /** Arrastre en curso: { uid, from: 'hold' | 'rocket', x, y, target: { stage, ok, reason } | null, ghost } */
   let drag = null;
   let pending = null; // clic que todavía no se sabe si es arrastre
+  /** @type {string | null} pieza de la bodega elegida para ver dónde encaja */
+  let chosenHold = null;
+  /** @type {string | null} pieza bajo el mouse */
+  let hoverUid = null;
+  /** Lugares donde encajaría la pieza elegida: [{ stage, ok, reason, item? (posición en pantalla) }] */
+  let ghosts = [];
+  // Animaciones: piezas que llegan, se mueven o se van. Salen de comparar un cohete con el anterior.
+  let lastItems = null; //  uid → pieza dibujada en el cuadro anterior (con su lugar en pantalla)
+  const arriving = new Map(); // uid → { t0, from: { x, y } | null }
+  let leaving = []; //       [{ item, t0, x, y, zoom }]
+  let frame = 0;
+  let replacing = false; //  el panel de "Reemplazar" está abierto
 
   const data = () => session.state?.data;
   const inventory = () => data()?.economy?.inventory ?? [];
@@ -108,12 +132,12 @@ export const mountBuilder = (container) => {
   //  Dónde va cada cosa en el dibujo
   // ============================================================
   /** Calcula la posición de cada pieza. Coordenadas "de plano": x desde el eje, y hacia arriba desde el suelo. */
-  const layout = () => {
+  const layout = (rk = rocket()) => {
     const lookup = find();
     const items = [];
     const stages = [];
     let floor = 0;
-    rocket().stages.forEach((stage, index) => {
+    rk.stages.forEach((stage, index) => {
       const engines = stage.engines.map((uid) => ({ uid, part: lookup(uid) })).filter((e) => e.part);
       const core = stage.core.map((uid) => ({ uid, part: lookup(uid) })).filter((e) => e.part);
       const engineHeight = Math.max(0, ...engines.map((e) => drawSize(e.part).h));
@@ -237,11 +261,56 @@ export const mountBuilder = (container) => {
       label(`+ ETAPA ${scene.stages.length + 1} (suelta una pieza aquí para crearla)`, width / 2, (a.y + b.y) / 2, { align: 'center', size: 11, weight: 600 });
     }
 
+    drawTower(width);
+    trackChanges();
+    const now = performance.now();
+
+    // Lugares donde encajaría la pieza elegida (fantasmas) o por qué no.
+    ghosts = chosenHold && canEdit() ? findGhosts(chosenHold) : [];
+    for (const ghost of ghosts) {
+      const bandY = ghost.stage < scene.stages.length
+        ? (toScreen(0, scene.stages[ghost.stage].top).y + toScreen(0, scene.stages[ghost.stage].bottom).y) / 2
+        : scene.newStage ? (scene.newStage.top + scene.newStage.bottom) / 2 : null;
+      if (bandY === null) continue;
+      if (!ghost.ok) {
+        // El motivo va debajo del nombre de la etapa, lejos de la torre y del cohete.
+        label(`✗ ${ghost.reason.length > 40 ? `${ghost.reason.slice(0, 39)}…` : ghost.reason}`, 10, bandY + 15, { size: 10, color: INK.coral, weight: 700 });
+        continue;
+      }
+      const g = ghost.item;
+      ctx.save();
+      ctx.globalAlpha = 0.45 + 0.15 * Math.sin(now / 260);
+      ctx.translate(g.screenX, g.screenY);
+      ctx.scale(scene.zoom, scene.zoom);
+      drawPart(ctx, g.part, { x: 0, y: 0, w: g.w, h: g.h });
+      ctx.restore();
+      ctx.save();
+      ctx.strokeStyle = INK.gold;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 4]);
+      ctx.lineDashOffset = -now / 40;
+      ctx.strokeRect(g.rect.x - 3, g.rect.y - 3, g.rect.w + 6, g.rect.h + 6);
+      ctx.restore();
+      label(`✓ etapa ${ghost.stage + 1}`, g.rect.x + g.rect.w + 8, g.rect.y + 8, { size: 11, color: INK.navy });
+    }
+
     // Piezas
     ctx.save();
     for (const item of scene.items) {
       const dragging = drag?.uid === item.uid;
       ctx.globalAlpha = dragging ? 0.3 : 1;
+      // Llegando: vuela desde la bodega (o desde su lugar anterior) y rebota al encajar.
+      const arrival = arriving.get(item.uid);
+      let offsetX = 0, offsetY = 0;
+      if (arrival) {
+        const t = Math.min(1, (now - arrival.t0) / FLY_MS);
+        const r = rectOf(item);
+        const from = arrival.from ?? { x: -40, y: r.y - 60 };
+        const e = easeOutBack(t);
+        offsetX = (from.x - r.x) * (1 - e);
+        offsetY = (from.y - r.y) * (1 - e);
+        if (item.slot === 'legs') ctx.globalAlpha = t;
+      }
       const tier = itemOf(item.uid)?.tier ?? null;
       if (item.slot === 'legs') {
         // Patas: dos puntales desde el cuerpo hasta el nivel de las toberas.
@@ -260,12 +329,56 @@ export const mountBuilder = (container) => {
       }
       const at = toScreen(item.x, item.slot === 'mounted' ? item.top - item.h / 2 : item.top);
       ctx.save();
-      ctx.translate(at.x, at.y);
+      ctx.translate(at.x + offsetX, at.y + offsetY);
       ctx.scale(scene.zoom, scene.zoom);
       drawPart(ctx, item.part, { x: 0, y: 0, w: item.w, h: item.h, tier });
       ctx.restore();
+      // El "clac": un anillo dorado que se abre cuando la pieza encaja.
+      if (arrival) {
+        const lock = (now - arrival.t0 - FLY_MS) / LOCK_MS;
+        if (lock >= 0 && lock < 1) {
+          const r = rectOf(item);
+          ctx.save();
+          ctx.globalAlpha = 1 - lock;
+          ctx.strokeStyle = INK.gold;
+          ctx.lineWidth = 3;
+          const grow = 4 + lock * 10;
+          ctx.strokeRect(r.x - grow, r.y - grow, r.w + grow * 2, r.h + grow * 2);
+          ctx.restore();
+        }
+        if (now - arrival.t0 > FLY_MS + LOCK_MS) arriving.delete(item.uid);
+      }
     }
     ctx.restore();
+
+    // Piezas que se van: se sueltan, suben un poco y salen hacia la bodega, apagándose.
+    leaving = leaving.filter((gone) => now - gone.t0 < LEAVE_MS);
+    for (const gone of leaving) {
+      const t = (now - gone.t0) / LEAVE_MS;
+      ctx.save();
+      ctx.globalAlpha = 1 - t;
+      ctx.translate(gone.x - t * t * 220, gone.y - Math.sin(t * Math.PI) * 30);
+      ctx.scale(gone.zoom, gone.zoom);
+      drawPart(ctx, gone.item.part, { x: 0, y: 0, w: gone.item.w, h: gone.item.h });
+      ctx.restore();
+    }
+
+    // Pieza bajo el mouse: borde fino y su nombre.
+    const hovered = !drag && scene.items.find((item) => item.uid === hoverUid);
+    if (hovered && hovered.uid !== selectedUid) {
+      const r = rectOf(hovered);
+      ctx.strokeStyle = withAlpha(INK.navy, 0.8);
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4);
+      ctx.setLineDash([]);
+      label(hovered.part.name, r.x + r.w / 2, r.y - 10, { align: 'center', size: 11 });
+    }
+
+    // Si hay algo animándose (o fantasmas latiendo), se pide otro cuadro.
+    if ((arriving.size > 0 || leaving.length > 0 || ghosts.length > 0) && !frame) {
+      frame = requestAnimationFrame(() => { frame = 0; draw(); });
+    }
 
     // Pieza elegida: marco dorado
     const chosen = scene.items.find((item) => item.uid === selectedUid);
@@ -277,6 +390,101 @@ export const mountBuilder = (container) => {
       ctx.strokeRect(r.x - 3, r.y - 3, r.w + 6, r.h + 6);
       ctx.setLineDash([]);
     }
+  };
+
+  /** La torre de ensamblaje: rieles, brazos que sujetan cada etapa, plataforma y luces. Solo decorado. */
+  const drawTower = (width) => {
+    if (scene.stages.length === 0) return;
+    const halfWidest = Math.max(...scene.stages.map((s) => s.width / 2)) + MOUNT_SIZE * 2 + 18;
+    const towerX = Math.min(width - 38, scene.originX + halfWidest * scene.zoom + 26);
+    const ground = toScreen(0, 0).y;
+    const top = toScreen(0, scene.height + 30).y;
+    ctx.save();
+    // Dos rieles con diagonales, como una torre de lanzamiento
+    ctx.strokeStyle = withAlpha(INK.navy, 0.75);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(towerX, ground); ctx.lineTo(towerX, top);
+    ctx.moveTo(towerX + 18, ground); ctx.lineTo(towerX + 18, top);
+    for (let y = ground; y > top + 18; y -= 22) { ctx.moveTo(towerX, y); ctx.lineTo(towerX + 18, y - 22); ctx.moveTo(towerX, y - 22); ctx.lineTo(towerX + 18, y - 22); }
+    ctx.stroke();
+    // Un brazo por etapa, hasta el costado del cuerpo, con una mordaza dorada
+    for (const stage of scene.stages) {
+      const y = (toScreen(0, stage.top).y + toScreen(0, stage.bottom).y) / 2;
+      const edge = scene.originX + (stage.width / 2) * scene.zoom + 2;
+      ctx.strokeStyle = withAlpha(INK.navy, 0.55);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(towerX, y); ctx.lineTo(edge + 8, y);
+      ctx.stroke();
+      ctx.fillStyle = INK.gold;
+      ctx.fillRect(edge, y - 4, 8, 8);
+    }
+    // Luces de trabajo arriba de la torre
+    for (const dx of [0, 18]) {
+      ctx.beginPath();
+      ctx.arc(towerX + dx, top, 4, 0, Math.PI * 2);
+      ctx.fillStyle = INK.gold;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(towerX + dx, top, 10, 0, Math.PI * 2);
+      ctx.fillStyle = withAlpha(INK.gold, 0.2);
+      ctx.fill();
+    }
+    // Plataforma con franjas de seguridad
+    const deckHalf = (halfWidest + 10) * scene.zoom;
+    ctx.fillStyle = INK.navy;
+    ctx.fillRect(scene.originX - deckHalf, ground - 6, deckHalf * 2 + (towerX + 24 - scene.originX - deckHalf), 6);
+    ctx.fillStyle = INK.gold;
+    for (let x = scene.originX - deckHalf + 4; x < towerX + 20; x += 14) ctx.fillRect(x, ground - 5, 6, 4);
+    ctx.restore();
+  };
+
+  /**
+   * Compara el cohete de este cuadro con el anterior: las piezas nuevas entran volando, las que se
+   * movieron vuelan desde su lugar viejo y las quitadas salen. Solo dibuja lo que el servidor ya hizo.
+   */
+  const trackChanges = () => {
+    const current = new Map(scene.items.map((item) => [item.uid, item]));
+    if (lastItems && !reducedMotion()) {
+      const now = performance.now();
+      for (const [uid, item] of current) {
+        const before = lastItems.get(uid);
+        if (!before) arriving.set(uid, { t0: now, from: null });
+        else if (before.stage !== item.stage || before.screen.x !== Math.round(rectOf(item).x) && before.slot !== item.slot) {
+          arriving.set(uid, { t0: now, from: { x: before.screen.x, y: before.screen.y } });
+        }
+      }
+      for (const [uid, before] of lastItems) {
+        if (!current.has(uid) && before.slot !== 'legs') leaving.push({ item: before, t0: now, x: before.at.x, y: before.at.y, zoom: before.zoom });
+      }
+    }
+    lastItems = new Map(scene.items.map((item) => {
+      const r = rectOf(item);
+      const at = toScreen(item.x, item.slot === 'mounted' ? item.top - item.h / 2 : item.top);
+      return [item.uid, { ...item, screen: { x: Math.round(r.x), y: r.y }, at, zoom: scene.zoom }];
+    }));
+  };
+
+  /** Dónde quedaría la pieza `uid` en cada etapa: se arma el cohete "como si" y se mide su lugar. */
+  const findGhosts = (uid) => {
+    const lookup = find();
+    const count = rocket().stages.length + (scene.newStage ? 1 : 0);
+    return Array.from({ length: count }, (_unused, stage) => {
+      const check = canPlace(rocket(), lookup, uid, stage);
+      if (!check.ok) return { stage, ok: false, reason: check.reason };
+      const preview = layout(withPart(rocket(), lookup, uid, stage, check.slot));
+      const spot = preview.items.find((item) => item.uid === uid);
+      if (!spot) return { stage, ok: false, reason: 'No hay lugar.' };
+      // El lugar dentro de su etapa, llevado a la etapa como se ve ahora.
+      const shift = (scene.stages[stage]?.bottom ?? scene.height) - preview.stages[stage].bottom;
+      const placed = { ...spot, top: spot.top + shift };
+      const at = toScreen(placed.x, placed.slot === 'mounted' ? placed.top - placed.h / 2 : placed.top);
+      const rect = placed.slot === 'legs'
+        ? { x: toScreen(-placed.w / 2, 0).x, y: toScreen(0, placed.top).y, w: placed.w * scene.zoom, h: placed.h * scene.zoom }
+        : rectOf(placed);
+      return { stage, ok: true, item: { ...placed, screenX: at.x, screenY: at.y, rect } };
+    });
   };
 
   /** Rectángulo en pantalla de una pieza dibujada. */
@@ -360,7 +568,15 @@ export const mountBuilder = (container) => {
     if (drag) return endDrag();
     if (pending && !pending.pan && pending.from === 'rocket') {
       selectedUid = pending.uid;
+      replacing = false;
+      chosenHold = null;
       activeStage = findInRocket(rocket(), pending.uid)?.stage ?? activeStage;
+      render();
+    }
+    // Un toque (sin arrastrar) en una pieza de la bodega la elige para ver dónde encaja.
+    if (pending && !pending.pan && pending.from === 'hold') {
+      chosenHold = chosenHold === pending.uid ? null : pending.uid;
+      selectedUid = null;
       render();
     }
     pending = null;
@@ -369,6 +585,19 @@ export const mountBuilder = (container) => {
   canvas.addEventListener('pointerdown', (event) => {
     const box = canvas.getBoundingClientRect();
     const x = event.clientX - box.left, y = event.clientY - box.top;
+    // Con una pieza elegida: tocar su fantasma (o su etapa) la pone ahí.
+    if (chosenHold && canEdit()) {
+      const stage = stageAt(y);
+      const target = ghosts.find((g) => g.ok && x >= g.item.rect.x - 6 && x <= g.item.rect.x + g.item.rect.w + 6 && y >= g.item.rect.y - 6 && y <= g.item.rect.y + g.item.rect.h + 6)
+        ?? ghosts.find((g) => g.stage === stage);
+      if (target?.ok) {
+        sendAction({ type: 'build:place', uid: chosenHold, stage: target.stage });
+        activeStage = target.stage;
+        chosenHold = null;
+        render();
+        return;
+      }
+    }
     const hit = itemAt(x, y);
     if (hit) {
       pending = { uid: hit.uid, from: 'rocket', x: event.clientX, y: event.clientY };
@@ -379,6 +608,21 @@ export const mountBuilder = (container) => {
     selectedUid = null;
     pending = { pan: true, x: event.clientX, y: event.clientY, panStart: panY };
     render();
+  });
+  canvas.addEventListener('pointermove', (event) => {
+    if (drag) return;
+    const box = canvas.getBoundingClientRect();
+    const hit = itemAt(event.clientX - box.left, event.clientY - box.top);
+    const uid = hit?.uid ?? null;
+    canvas.style.cursor = hit ? 'pointer' : chosenHold ? 'copy' : 'grab';
+    if (uid !== hoverUid) {
+      hoverUid = uid;
+      draw();
+    }
+  });
+  canvas.addEventListener('pointerleave', () => {
+    hoverUid = null;
+    draw();
   });
   canvas.addEventListener('wheel', (event) => {
     if (userZoom === null) return;
@@ -395,6 +639,7 @@ export const mountBuilder = (container) => {
     const loose = inventory().filter((item) => !installed.has(item.uid));
     const edit = canEdit();
     hold.replaceChildren(el('h4', '', `Bodega (${loose.length})`));
+    if (edit && loose.length > 0) hold.append(el('p', 'builder-note', chosenHold ? 'Toca un lugar dorado en el cohete para ponerla, o la pieza otra vez para soltarla.' : 'Toca una pieza para ver dónde encaja, o arrástrala al cohete.'));
     if (loose.length === 0) {
       hold.append(el('p', 'builder-empty', inventory().length === 0 ? 'No hay piezas compradas. Comercio las compra en el Mercado.' : 'Todas las piezas están puestas.'));
       return;
@@ -414,7 +659,7 @@ export const mountBuilder = (container) => {
         const [first] = items;
         const part = getPart(first.partId);
         const tier = tierOf(first.tier);
-        const row = el('li', 'hold-item');
+        const row = el('li', `hold-item${items.some((i) => i.uid === chosenHold) ? ' chosen' : ''}`);
         const thumb = /** @type {HTMLCanvasElement} */ (el('canvas'));
         drawThumb(thumb, part, first.tier);
         const text = el('div', 'hold-text');
@@ -491,9 +736,55 @@ export const mountBuilder = (container) => {
       up.disabled = !checkDrop(item.uid, 'rocket', where.stage + 1).ok;
       const down = button('Bajar de etapa', '', () => sendAction({ type: 'build:move', uid: item.uid, stage: where.stage - 1 }));
       down.disabled = where.stage === 0 || !checkDrop(item.uid, 'rocket', where.stage - 1).ok;
-      actions.append(up, down, button('Quitar', 'danger', () => sendAction({ type: 'build:remove', uid: item.uid })));
+      const swap = button(replacing ? 'Cerrar reemplazo' : 'Reemplazar…', '', () => { replacing = !replacing; renderPicked(); });
+      actions.append(up, down, swap, button('Quitar', 'danger', () => sendAction({ type: 'build:remove', uid: item.uid })));
       picked.append(actions);
+      if (replacing) picked.append(replaceList(item, part, real));
     }
+  };
+
+  /** Lista de piezas de la bodega que pueden ir en su lugar, comparando sus números con la puesta. */
+  const replaceList = (item, part, real) => {
+    const box = el('div', 'replace-list');
+    const installed = new Set(installedUids(rocket()));
+    const seen = new Set();
+    const options = inventory().filter((other) => {
+      if (installed.has(other.uid)) return false;
+      const key = [other.partId, other.tier, other.condition, other.quality].join('|');
+      if (seen.has(key)) return false;
+      if (!replaceCheck(rocket(), find(), item.uid, other.uid).ok) return false;
+      seen.add(key);
+      return true;
+    });
+    if (options.length === 0) {
+      box.append(el('p', 'builder-note', 'No hay en la bodega ninguna pieza que pueda ir en este lugar. Comercio puede comprar una.'));
+      return box;
+    }
+    box.append(el('p', 'builder-note', 'Cambiar por (▲ mejora, ▼ empeora):'));
+    for (const other of options) {
+      const otherPart = getPart(other.partId);
+      const otherReal = resolvePart(other);
+      const columns = versionColumns(otherPart);
+      const row = el('div', 'replace-row');
+      const name = el('strong', '', `${otherPart.name} · ${tierOf(other.tier).name}`);
+      const diff = el('span', 'replace-diff');
+      diff.textContent = columns.map((column) => {
+        const before = versionColumns(part).find((c) => c.key === column.key);
+        if (!before) return `${column.label} ${column.value(otherReal)}`;
+        const a = column.value(real), b = column.value(otherReal);
+        if (a === b) return `${column.label} ${b}`;
+        const better = { thrust: 1, isp: 1, powerOutput: 1, energyCapacity: 1, powerDraw: -1, mass: -1, reliability: 1 }[column.key] ?? 1;
+        const num = (v) => Number(String(v).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.'));
+        const up = (num(b) - num(a)) * better > 0;
+        return `${column.label} ${a} → ${b} ${up ? '▲' : '▼'}`;
+      }).join(' · ');
+      row.append(name, diff, button('Cambiar', 'replace-go', () => {
+        replacing = false;
+        sendAction({ type: 'build:replace', uid: item.uid, with: other.uid });
+      }));
+      box.append(row);
+    }
+    return box;
   };
 
   // ============================================================
@@ -506,6 +797,22 @@ export const mountBuilder = (container) => {
     const stats = review.stats;
     const needed = totalDeltaV(mission.flightPlan);
     statsBox.replaceChildren();
+    /** Lista de datos: [nombre, valor, explicación, tono?] */
+    const statList = (rows) => {
+      const list = el('dl', 'stat-list');
+      for (const [name, value, help, tone] of rows) {
+        const row = el('div', tone ? `tone-${tone}` : '');
+        row.title = help;
+        row.append(el('dt', '', name), el('dd', '', value));
+        list.append(row);
+      }
+      return list;
+    };
+    // Lo técnico va a pedido: se arma aquí y se muestra abierto solo si el jugador lo abrió.
+    const details = /** @type {HTMLDetailsElement} */ (el('details', 'builder-details'));
+    details.open = detailsOpen;
+    details.addEventListener('toggle', () => { detailsOpen = details.open; });
+    details.append(el('summary', '', 'Ver detalles técnicos'));
 
     const head = el('h4', '', 'El cohete en números');
     statsBox.append(head);
@@ -514,31 +821,28 @@ export const mountBuilder = (container) => {
     } else {
       const twrClass = stats.twr < 1 ? 'bad' : stats.twr < 1.2 ? 'warn' : 'good';
       const dvClass = stats.deltaV < needed ? 'bad' : stats.deltaV < needed * 1.03 ? 'warn' : 'good';
-      const rows = [
+      // Lo básico: ¿llega?, ¿despega?, ¿cuánto pesa y cuesta?
+      const meter = el('div', `dv-meter ${dvClass}`);
+      meter.append(el('i'));
+      /** @type {HTMLElement} */ (meter.firstChild).style.width = `${Math.min(100, (stats.deltaV / needed) * 100)}%`;
+      meter.title = `Δv del cohete frente a los ${number(needed)} m/s que pide la misión`;
+      const dvLine = el('p', `dv-headline tone-${dvClass}`, `Δv ${number(stats.deltaV)} de ${number(needed)} m/s que pide la misión`);
+      dvLine.title = 'Delta-v: cuánto puede cambiar su velocidad la nave con el combustible que lleva. Si no alcanza lo que pide el viaje, no vuelve.';
+      statsBox.append(dvLine, meter, statList([
+        ['Empuje/peso', number(stats.twr, 2), 'Empuje dividido por el peso. Menos de 1: el cohete no se levanta. Conviene 1,2 o más.', twrClass],
         ['Masa total', mass(stats.mass), 'Todo lo que hay que levantar: piezas más combustible.'],
+        ['Costo', `${credits(stats.cost)} (quedan ${credits(state.economy.credits)})`, 'Lo pagado por las piezas puestas más el combustible, que se cobra al despegar.'],
+      ]));
+
+      details.append(statList([
         ['Combustible', `${mass(stats.propellantMass)} de ${mass(stats.propellantCapacity)}`, 'Lo cargado y lo que cabe en los tanques.'],
         ['Empuje al despegar', force(stats.thrust), 'La fuerza de los motores de la primera etapa al nivel del mar.'],
-        ['Empuje/peso', number(stats.twr, 2), 'Empuje dividido por el peso. Menos de 1: el cohete no se levanta. Conviene 1,2 o más.', twrClass],
-        ['Δv total', `${number(stats.deltaV)} m/s`, `Delta-v: cuánto puede cambiar su velocidad con el combustible que lleva. La misión pide ${number(needed)} m/s.`, dvClass],
         ['Carga útil', mass(stats.payloadMass), 'Lo que la última etapa lleva que no es motor ni tanque.'],
         ['Integridad', Number.isFinite(stats.integrity) ? `${number(stats.integrity, 2)} ×` : 'sin carga', 'Cuántas veces aguanta la pieza más exigida la carga que lleva encima. Menos de 1: se rompe.', stats.integrity < 1 ? 'bad' : stats.integrity < 1.25 ? 'warn' : 'good'],
         ['Energía', `${number(stats.powerOutput)} W genera · ${number(stats.powerDraw)} W consume`, 'Si consume más de lo que genera, vive de las baterías.', stats.powerBalance < 0 ? 'warn' : 'good'],
         ['Baterías', `${number(stats.energyCapacity / 3.6e6, 1)} kWh`, 'Energía guardada para cuando no da el Sol.'],
         ['Altura real', `${number(stats.height)} m`, 'La altura de verdad; el dibujo no está a escala.'],
-        ['Costo', `${credits(stats.cost)} (quedan ${credits(state.economy.credits)})`, 'Lo pagado por las piezas puestas más el combustible, que se cobra al despegar.'],
-      ];
-      const list = el('dl', 'stat-list');
-      for (const [name, value, help, tone] of rows) {
-        const row = el('div', tone ? `tone-${tone}` : '');
-        row.title = help;
-        row.append(el('dt', '', name), el('dd', '', value));
-        list.append(row);
-      }
-      const meter = el('div', `dv-meter ${dvClass}`);
-      meter.append(el('i'));
-      /** @type {HTMLElement} */ (meter.firstChild).style.width = `${Math.min(100, (stats.deltaV / needed) * 100)}%`;
-      meter.title = `Δv del cohete frente a los ${number(needed)} m/s que pide la misión`;
-      statsBox.append(list, meter);
+      ]));
 
       const table = el('table', 'versions stage-table');
       table.appendChild(el('thead')).appendChild(el('tr')).append(...['Etapa', 'Masa', 'Δv', 'Empuje/peso'].map((text) => el('th', '', text)));
@@ -548,12 +852,16 @@ export const mountBuilder = (container) => {
         row.append(el('td', '', `${index + 1}`), el('td', '', mass(stage.mass)), el('td', '', `${number(stage.deltaV)} m/s`), el('td', '', number(stage.twr, 2)));
         body.prepend(row);
       });
-      statsBox.append(table, el('p', 'builder-note', 'El empuje/peso de cada etapa está medido con la gravedad de la Tierra y con todo lo que lleva encima.'));
+      details.append(table, el('p', 'builder-note', 'El empuje/peso de cada etapa está medido con la gravedad de la Tierra y con todo lo que lleva encima.'));
     }
 
-    // Plan de vuelo: qué tramos alcanza
+    // Plan de vuelo: un resumen a la vista, el detalle tramo por tramo a pedido.
     if (review.plan) {
-      statsBox.append(el('h4', '', 'Plan de vuelo'));
+      const reachedCount = review.plan.legs.filter((leg) => leg.ok).length;
+      statsBox.append(el('p', `plan-headline ${review.plan.ok ? 'ok' : 'fail'}`, review.plan.ok
+        ? `✓ Alcanza para los ${mission.flightPlan.length} tramos del viaje (sobran ${number(review.plan.spareDeltaV)} m/s).`
+        : `✗ Llega a ${reachedCount} de ${mission.flightPlan.length} tramos: falla en "${review.plan.legs.find((leg) => !leg.ok)?.name}".`));
+      details.append(el('h4', '', 'Plan de vuelo, tramo por tramo'));
       const legs = el('ol', 'leg-list');
       let reached = true;
       for (const leg of review.plan.legs) {
@@ -562,27 +870,27 @@ export const mountBuilder = (container) => {
         legs.append(item);
       }
       if (!reached) for (const leg of mission.flightPlan.slice(review.plan.legs.length)) legs.append(el('li', 'pending', `· ${leg.name}`));
-      statsBox.append(legs);
-      if (review.plan.ok) statsBox.append(el('p', 'builder-note', `Sobran ${number(review.plan.spareDeltaV)} m/s de margen.`));
+      details.append(legs);
     }
 
     // Revisión antes de despegar
     statsBox.append(el('h4', '', 'Revisión antes de despegar'));
     const groups = [
-      ['critical', 'No se puede despegar', review.critical],
-      ['warning', 'Se puede, con riesgo', review.warnings],
-      ['tip', 'Mejoras opcionales', review.tips],
+      { kind: 'critical', title: 'No se puede despegar', issues: review.critical, where: statsBox },
+      { kind: 'warning', title: 'Se puede, con riesgo', issues: review.warnings, where: statsBox },
+      { kind: 'tip', title: 'Mejoras opcionales', issues: review.tips, where: details },
     ];
-    if (groups.every(([, , issues]) => issues.length === 0)) statsBox.append(el('p', 'review-clear', '✓ Todo en regla.'));
-    for (const [kind, title, issues] of groups) {
+    if (review.critical.length + review.warnings.length === 0) statsBox.append(el('p', 'review-clear', '✓ Todo en regla para despegar.'));
+    for (const { kind, title, issues, where } of groups) {
       if (issues.length === 0) continue;
       const block = el('div', `review ${kind}`);
       block.append(el('h5', '', `${title} (${issues.length})`));
       const list = el('ul');
       for (const issue of issues) list.append(el('li', '', issue.text));
       block.append(list);
-      statsBox.append(block);
+      where.append(block);
     }
+    if (stats) statsBox.append(details);
   };
 
   // ============================================================
@@ -620,6 +928,7 @@ export const mountBuilder = (container) => {
   render();
   const offs = [on('state', render), on('room', render)];
   return () => {
+    cancelAnimationFrame(frame);
     drag?.ghost.remove();
     window.removeEventListener('pointermove', onPointerMove);
     window.removeEventListener('pointerup', onPointerUp);

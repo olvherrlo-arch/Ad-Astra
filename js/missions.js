@@ -4,7 +4,7 @@
  * por qué etapas pasan y qué le toca a cada rol en cada una.
  *
  * Para agregar una etapa o cambiar una tarea, edita esta lista: la mesa de misión se arma sola.
- * `tools: false` = la herramienta de esa etapa todavía no está programada; mientras tanto
+ * `tools: false` = etapa de conversación, sin herramienta (Informe y Planificación); en ella
  * cada rol lee su tarea y da el visto bueno. Con `tools: true`, `tool` dice cuál se muestra
  * (una, o varias en pestañas; las arma js/desk.js).
  *
@@ -83,7 +83,8 @@ const MOON_STAGES = [
     id: 'flight',
     name: 'Vuelo',
     summary: 'Despegue, órbita terrestre, transferencia lunar y entrada en órbita de la Luna.',
-    tools: false,
+    tools: true,
+    tool: 'flight',
     tasks: {
       scientist: 'Elige la zona de alunizaje en el lado oculto.',
       merchant: 'Lleva la cuenta de lo que queda: combustible, energía y reserva.',
@@ -95,7 +96,8 @@ const MOON_STAGES = [
     id: 'surface',
     name: 'Superficie',
     summary: 'Alunizaje y búsqueda del Prisma en el lado oculto.',
-    tools: false,
+    tools: true,
+    tool: 'flight',
     tasks: {
       scientist: 'Analiza las muestras y ubica el Prisma.',
       merchant: 'Decide si alcanza para usar equipo extra.',
@@ -107,7 +109,8 @@ const MOON_STAGES = [
     id: 'return',
     name: 'Regreso',
     summary: 'La nave vuelve a la Tierra con el Prisma a bordo.',
-    tools: false,
+    tools: true,
+    tool: 'flight',
     tasks: {
       scientist: 'Protege el Prisma durante el viaje.',
       merchant: 'Administra lo último que queda de combustible y energía.',
@@ -119,7 +122,8 @@ const MOON_STAGES = [
     id: 'debrief',
     name: 'Evaluación',
     summary: 'Qué salió bien, qué falló y por qué.',
-    tools: false,
+    tools: true,
+    tool: 'flight',
     tasks: {
       scientist: 'Resume el resultado científico.',
       merchant: 'Resume en qué se gastó y qué sobró.',
@@ -195,8 +199,14 @@ export const MISSION_STATUS = {
 
 export const getMission = (id) => MISSIONS.find((m) => m.id === id);
 
-/** Campaña recién empezada: sin prólogo visto y solo la primera misión disponible. */
+/**
+ * Por ahora (pedido del equipo) las tres misiones empiezan desbloqueadas. Con false, cada una se abre
+ * al completar la anterior.
+ */
+export const UNLOCK_ALL_MISSIONS = true;
+
+/** Campaña recién empezada: sin prólogo visto y las misiones disponibles según UNLOCK_ALL_MISSIONS. */
 export const freshCampaign = () => ({
   prologueSeen: false,
-  missions: Object.fromEntries(MISSIONS.map((mission, index) => [mission.id, index === 0 ? 'available' : 'locked'])),
+  missions: Object.fromEntries(MISSIONS.map((mission, index) => [mission.id, index === 0 || UNLOCK_ALL_MISSIONS ? 'available' : 'locked'])),
 });

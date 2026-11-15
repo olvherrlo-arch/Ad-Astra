@@ -267,8 +267,6 @@ export const customize = (changes) => {
   socket.emit(EVENTS.PLAYER_CUSTOMIZE, changes);
 };
 
-/** Elige tu rol en la misión (id de ROLES) o suéltalo con null. Si está ocupado, el servidor no lo cambia. */
-export const setRole = (roleId) => socket.emit(EVENTS.PLAYER_SET_ROLE, roleId);
 export const setReady = (ready) => socket.emit(EVENTS.PLAYER_SET_READY, ready);
 
 // Solo el anfitrión (el servidor ignora estos pedidos si no lo eres).

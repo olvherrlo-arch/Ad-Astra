@@ -17,6 +17,10 @@
  *   needs          capacidades (js/catalog.js → CAPABILITIES) sin las que el tramo no se puede hacer
  *   release        capacidades cuya pieza se suelta al terminar el tramo (deja de pesar)
  *   addMass        masa que se sube a bordo al terminar el tramo (kg)
+ *   stage          en qué etapa de la misión se vuela (flight | surface | return, de js/missions.js)
+ *   hours          cuánto dura el tramo, con la espera que viene después (para la energía)
+ *   sun            fracción de ese tiempo con luz del Sol sobre los paneles (0 a 1; estimación)
+ *   farSide        la nave está detrás de la Luna: sin repetidor no hay señal directa con la Tierra
  */
 import { BODIES, circularVelocity, escapeBurn, hohmann, orbitSpeed } from './physics.js';
 
@@ -24,7 +28,7 @@ const LOW_EARTH_ORBIT = 200_000; // m sobre la superficie
 const LOW_LUNAR_ORBIT = 100_000;
 const ASCENT_LOSSES = 1_600; //     m/s; estimación: gravedad y arrastre al subir, menos la ayuda de la rotación terrestre
 const LANDING_MARGIN = 1.1; //      estimación: 10 % extra por frenar contra la gravedad lunar y la maniobra final
-const PRISM_MASS = 85; //           kg; ficción
+export const PRISM_MASS = 85; //    kg; ficción
 
 const round = (value) => Math.round(value / 10) * 10;
 
@@ -45,36 +49,39 @@ export const moonFlightPlan = () => {
   return [
     {
       id: 'ascent', name: 'Subir a órbita terrestre', dv: round(circularVelocity(earth.mu, leo) + ASCENT_LOSSES),
-      body: 'earth', minTwr: 1.15, atmosphere: true,
+      body: 'earth', minTwr: 1.15, atmosphere: true, stage: 'flight', hours: 0.2, sun: 1,
       note: `Velocidad de órbita a ${LOW_EARTH_ORBIT / 1000} km más unas pérdidas estimadas de ${ASCENT_LOSSES} m/s por gravedad y aire.`,
     },
     {
-      id: 'tli', name: 'Transferencia a la Luna', dv: round(toMoon.dv1),
+      id: 'tli', name: 'Transferencia a la Luna', dv: round(toMoon.dv1), stage: 'flight', hours: Math.round(toMoon.time / 3600), sun: 1,
       note: `Un encendido que estira la órbita hasta la distancia de la Luna. El viaje dura unos ${Math.round(toMoon.time / 86_400)} días.`,
     },
     {
       id: 'loi', name: 'Entrar en órbita lunar', dv: round(lunarCapture), release: ['relay'],
+      stage: 'flight', hours: 4, sun: 0.5, farSide: true,
       note: 'Frenar para que la Luna atrape a la nave. Aquí se suelta el satélite repetidor, si se lleva.',
     },
     {
       id: 'descent', name: 'Alunizar en el lado oculto', dv: round(landing),
-      body: 'moon', minTwr: 1.3, needs: ['landing-gear', 'landing-engine'],
+      body: 'moon', minTwr: 1.3, needs: ['landing-gear', 'landing-engine'], stage: 'surface', hours: 1, sun: 0.5, farSide: true,
       note: 'Bajar de la órbita y frenar hasta posarse. Sin aire, todo el frenado lo hace el motor.',
     },
     {
       id: 'surface', name: 'Encontrar y cargar el Prisma', dv: 0, needs: ['prism-scan', 'prism-cargo'], addMass: PRISM_MASS,
+      stage: 'surface', hours: 10, sun: 0.5, farSide: true,
       note: 'No gasta combustible, pero el Prisma suma masa para el viaje de vuelta.',
     },
     {
       id: 'liftoff', name: 'Despegar de la Luna', dv: round(landing), body: 'moon', minTwr: 1.2,
+      stage: 'surface', hours: 1, sun: 0.5, farSide: true,
       note: 'Lo mismo que alunizar, al revés.',
     },
     {
-      id: 'tei', name: 'Volver hacia la Tierra', dv: round(lunarCapture),
+      id: 'tei', name: 'Volver hacia la Tierra', dv: round(lunarCapture), stage: 'return', hours: 4, sun: 0.5, farSide: true,
       note: 'Salir de la órbita lunar rumbo a la Tierra.',
     },
     {
-      id: 'reentry', name: 'Reentrada', dv: 0, needs: ['heatshield'],
+      id: 'reentry', name: 'Reentrada', dv: 0, needs: ['heatshield'], stage: 'return', hours: Math.round(toMoon.time / 3600), sun: 1,
       note: 'El aire frena a la cápsula: no hace falta combustible, pero sí escudo térmico.',
     },
   ];

@@ -152,6 +152,34 @@ export const withoutPart = (rocket, uid) => ({
   })),
 });
 
+/**
+ * ¿Se puede cambiar la pieza `uid` (puesta) por `replacement` (de la bodega), en el mismo lugar?
+ * Devuelve { ok: true, rocket } con el cohete ya cambiado, o { ok: false, reason }.
+ * Es todo o nada: si el cambio no cierra, el cohete queda como estaba.
+ */
+export const replaceCheck = (rocket, find, uid, replacement) => {
+  const where = findInRocket(rocket, uid);
+  if (!where) return { ok: false, reason: 'Esa pieza no está en el cohete.' };
+  if (findInRocket(rocket, replacement)) return { ok: false, reason: 'La pieza nueva ya está puesta.' };
+  const oldPart = find(uid), newPart = find(replacement);
+  if (!newPart) return { ok: false, reason: 'La pieza nueva no está en la bodega.' };
+  if (oldPart.slot !== newPart.slot) return { ok: false, reason: 'Solo se cambia por una pieza que va en el mismo lugar (motor por motor, cuerpo por cuerpo, equipo por equipo).' };
+  const lifted = withoutPart(rocket, uid);
+  const check = canPlace(lifted, find, replacement, where.stage);
+  if (!check.ok) return { ok: false, reason: check.reason };
+  let next = withPart(lifted, find, replacement, where.stage, check.slot);
+  // En el mismo lugar: si era un motor o un equipo, la nueva ocupa su posición en la lista.
+  if (check.slot !== 'core') {
+    const stage = { ...next.stages[where.stage] };
+    const list = rocket.stages[where.stage][check.slot];
+    stage[check.slot] = list.map((other) => (other === uid ? replacement : other));
+    next = { ...next, stages: next.stages.map((s, i) => (i === where.stage ? stage : s)) };
+  }
+  const problem = stageProblem(next.stages[where.stage], find);
+  if (problem) return { ok: false, reason: problem };
+  return { ok: true, rocket: next, stage: where.stage };
+};
+
 /** Llenado válido: entre 0 y 1, de a 5 %. */
 export const normalizeFill = (value) => {
   const number = Number(value);

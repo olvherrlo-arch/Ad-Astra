@@ -20,6 +20,8 @@
  *
  * El dinero y las compras están en server/economy.js y el armado del cohete en server/build.js;
  * este archivo les pasa las acciones y decide cuándo se puede pasar de etapa.
+ * El vuelo está en server/flight.js: empieza al salir de Validación y dura las etapas Vuelo,
+ * Superficie y Regreso.
  */
 import { randomInt } from 'node:crypto';
 import { emptyRocket, installedUids, toPhysicsStages } from '../js/assembly.js';
@@ -30,8 +32,20 @@ import { EVENTS, ROLES, canActAs, isRoleId, roleName } from '../js/shared.js';
 import { getStory } from '../js/story.js';
 import { applyBuildAction, isBuildAction } from './build.js';
 import { applyEconomyAction, isEconomyAction, openEconomy } from './economy.js';
+import { applyFlightAction, isFlightAction, startFlight } from './flight.js';
 
 const LOG_LIMIT = 30;
+/** Etapas de la misión que son parte del viaje (las maneja server/flight.js). */
+const FLIGHT_STAGES = ['flight', 'surface', 'return'];
+
+/** Marca la misión como completada y abre la siguiente de la campaña. */
+const completeMission = (campaign, missionId) => {
+  const missions = { ...campaign.missions, [missionId]: 'completed' };
+  const order = Object.keys(missions);
+  const nextId = order[order.indexOf(missionId) + 1];
+  if (nextId && missions[nextId] === 'locked') missions[nextId] = 'available';
+  return { ...campaign, missions };
+};
 const UNDO_LIMIT = 40;
 
 const nobodyConfirmed = () => Object.fromEntries(ROLES.map((role) => [role.id, false]));
@@ -53,10 +67,11 @@ export const createInitialState = (campaign = freshCampaign()) => ({
     log: [], //                      bitácora: lo último que pasó, para que todos se enteren
     economy: null, //                presupuesto, mercado y bodega (se abre al elegir la misión)
     rocket: null, //                 el cohete armado (js/assembly.js)
+    flight: null, //                 el vuelo en curso (server/flight.js)
     undoSteps: 0, //                 cuántos cambios del cohete se pueden deshacer
     campaign,
   },
-  secret: { seed: randomInt(2 ** 31), vault: null, undo: [] },
+  secret: { seed: randomInt(2 ** 31), vault: null, undo: [], ship: null },
 });
 
 /** Lo único que sale del servidor. */
@@ -70,6 +85,7 @@ export const isGameAction = (action) => {
     case 'story:next':
     case 'story:back':
     case 'story:replay':
+    case 'story:skip':
     case 'stage:advance':
       return true;
     case 'mission:start':
@@ -77,7 +93,7 @@ export const isGameAction = (action) => {
     case 'role:confirm':
       return isRoleId(action.role) && typeof action.value === 'boolean';
     default:
-      return isEconomyAction(action) || isBuildAction(action);
+      return isEconomyAction(action) || isBuildAction(action) || isFlightAction(action);
   }
 };
 
@@ -88,10 +104,11 @@ export const isGameAction = (action) => {
  */
 export const applyAction = (state, action, actor) => {
   const { data } = state;
-  /** @param {object} next  @param {string | null} [logText]  @param {object} [secretNext] */
+  /** @param {object} next  @param {string | string[] | null} [logText]  @param {object} [secretNext] */
   const commit = (next, logText, secretNext) => {
     const merged = { ...data, ...next };
-    if (logText) merged.log = [...data.log, logText].slice(-LOG_LIMIT);
+    const lines = (Array.isArray(logText) ? logText : [logText]).filter(Boolean);
+    if (lines.length > 0) merged.log = [...data.log, ...lines].slice(-LOG_LIMIT);
     return { state: { ...state, version: state.version + 1, data: merged, secret: { ...state.secret, ...secretNext } } };
   };
   const hostOnly = (what) => (actor.isHost ? null : { error: `Solo el anfitrión ${what}.` });
@@ -125,6 +142,16 @@ export const applyAction = (state, action, actor) => {
       if (data.page === 0) return { error: 'Esta es la primera página.' };
       return commit({ page: data.page - 1, read: {} });
     }
+    case 'story:skip': {
+      // El anfitrión salta lo que queda de la historia (por ejemplo, si el equipo ya la vio).
+      if (!story) return { error: 'Ahora no hay nada que saltar.' };
+      const refusal = hostOnly('puede saltar la historia');
+      if (refusal) return refusal;
+      if (data.scene === 'prologue') {
+        return commit({ scene: 'select', page: 0, read: {}, campaign: { ...data.campaign, prologueSeen: true } }, `${actor.name} saltó el prólogo.`);
+      }
+      return commit({ scene: 'mission', page: 0, read: {} }, `${actor.name} saltó el informe. Empieza la misión: ${getMission(data.missionId).title}.`);
+    }
     case 'story:replay': {
       const refusal = hostOnly('puede volver a mostrar el prólogo');
       if (refusal) return refusal;
@@ -146,6 +173,7 @@ export const applyAction = (state, action, actor) => {
       return commit({
         economy,
         rocket: emptyRocket(),
+        flight: null,
         undoSteps: 0,
         scene: 'briefing',
         page: 0,
@@ -157,7 +185,7 @@ export const applyAction = (state, action, actor) => {
           ...data.campaign,
           missions: { ...data.campaign.missions, [mission.id]: status === 'completed' ? status : 'in_progress' },
         },
-      }, `${actor.name} eligió la misión ${mission.title}.`, { vault, undo: [] });
+      }, `${actor.name} eligió la misión ${mission.title}.`, { vault, undo: [], ship: null });
     }
 
     // ---------- Mesa de misión ----------
@@ -179,6 +207,14 @@ export const applyAction = (state, action, actor) => {
       if (data.stageIndex >= stages.length - 1) return { error: 'Esta es la última etapa.' };
       const next = stages[data.stageIndex + 1];
       const moveOn = { stageIndex: data.stageIndex + 1, confirmed: nobodyConfirmed() };
+      const current = stages[data.stageIndex].id;
+
+      // Durante el viaje, se pasa de etapa cuando terminan sus tramos.
+      if (FLIGHT_STAGES.includes(current)) {
+        const flight = data.flight;
+        if (!flight || !['stageDone', 'over'].includes(flight.phase)) return { error: 'Todavía quedan tramos de esta parte del viaje.' };
+        return commit({ ...moveOn, flight: { ...flight, phase: flight.phase === 'over' ? 'over' : 'ready' } }, `Empieza la etapa: ${next.name}.`);
+      }
 
       // Al salir de Validación se despega: el cohete tiene que pasar la revisión y se paga el combustible.
       if (stages[data.stageIndex].id === 'validation') {
@@ -189,9 +225,15 @@ export const applyAction = (state, action, actor) => {
           return { error: `No se puede despegar. ${review.critical[0].text}${more}` };
         }
         const fuel = propellantCost(physical);
+        const mission = getMission(data.missionId);
+        const { flight, ship } = startFlight({
+          rocket: data.rocket, inventory: data.economy.inventory, vaultItems: state.secret.vault.items,
+          legs: mission.flightPlan, seed: state.secret.seed,
+        });
         return commit(
-          { ...moveOn, economy: { ...data.economy, credits: data.economy.credits - fuel } },
-          `Tanques llenos: ${number(fuel)} créditos de combustible. Empieza la etapa: ${next.name}.`,
+          { ...moveOn, flight, economy: { ...data.economy, credits: data.economy.credits - fuel } },
+          `Tanques llenos: ${number(fuel)} créditos de combustible. ¡Despegue! Empieza la etapa: ${next.name}.`,
+          { ship },
         );
       }
       return commit(moveOn, `Empieza la etapa: ${next.name}.`);
@@ -200,6 +242,23 @@ export const applyAction = (state, action, actor) => {
       // ---------- Mercado, mercado negro y bodega (server/economy.js) ----------
       if (data.scene !== 'mission') return { error: 'La misión todavía no empezó.' };
       const stageId = stages[data.stageIndex]?.id;
+
+      // ---------- Vuelo (server/flight.js) ----------
+      if (isFlightAction(action)) {
+        const mission = getMission(data.missionId);
+        const flown = applyFlightAction({
+          flight: data.flight, ship: state.secret.ship, legs: mission.flightPlan, credits: data.economy.credits, stageId,
+        }, action, actor);
+        if (flown.error) return { error: flown.error };
+        const next = { flight: flown.flight, economy: { ...data.economy, credits: flown.credits } };
+        const result = flown.flight.result;
+        if (result && !data.flight.result) {
+          // Fin del vuelo. Si falló, la misión salta a la Evaluación; si salió bien, se desbloquea la siguiente.
+          if (!result.ok) Object.assign(next, { stageIndex: stages.findIndex((s) => s.id === 'debrief'), confirmed: nobodyConfirmed() });
+          else next.campaign = completeMission(data.campaign, data.missionId);
+        }
+        return commit(next, flown.logs, { ship: flown.ship });
+      }
 
       // ---------- Constructor (server/build.js) ----------
       if (isBuildAction(action)) {

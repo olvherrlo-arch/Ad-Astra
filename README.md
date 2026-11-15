@@ -61,12 +61,17 @@ Si el anfitrión se va, el rol pasa a quien lleva más tiempo en la sala.
 
 ## Roles, Listo y la misión
 
-- **Rol:** en la tarjeta de embarque, botón **Rol** → elige Ciencia, Comercio, Ingeniería o Vuelo. Cada rol lo ocupa
-  una sola persona. Solo cambia lo que haces en la misión; el color y el sombrero son apariencia.
-- **Listo:** quien no es anfitrión marca **Listo**. El anfitrión puede **Despegar** cuando todos tienen rol y están listos.
+- **Roles al azar:** en el lobby nadie elige rol. Al despegar, a cada quien le toca uno al azar (Ciencia, Comercio,
+  Ingeniería o Vuelo) y una cinemática se lo revela: la tripulación en fila con cartas boca abajo, después tu rol en
+  grande, y al final el de todos. En el lobby no aparece nada de roles.
+- **Listo:** quien no es anfitrión marca **Listo**. El anfitrión puede **Despegar** cuando todos están listos.
 - **Modo demo:** se puede despegar con 1 a 3 personas; en la misión, los roles libres los maneja cualquiera.
-- **Prólogo:** la primera vez que una sala despega, la tripulación lee junta la historia (6 páginas). El anfitrión
-  pasa la página con **Siguiente** (o las flechas ← →) y puede volver con **Anterior**; los demás avisan **Ya leí**.
+- **Prólogo:** la primera vez que una sala despega, la tripulación ve junta la historia como una cinemática
+  (6 escenas): la ilustración entra con un fundido y una cámara lenta, y el texto se escribe solo (un clic o
+  Espacio lo muestra entero). El anfitrión pasa con **Siguiente** (o las flechas ← →), puede volver con
+  **Anterior** o **Saltar** la historia para todos; los demás avisan **Ya leí**.
+- **Tomas de cine:** al empezar la misión, al despegar, al llegar a la Luna, al volver y al terminar aparece una
+  toma corta a pantalla completa. Se cierra sola o con un clic.
 - **Constelación:** las tres misiones son tres estrellas. Toca una para ver su ficha (objetivo, duración,
   dificultad, equipo). Solo la primera está disponible; las otras dicen por qué están bloqueadas.
   El anfitrión presiona **Iniciar misión** y se lee el informe (4 páginas) antes de empezar.
@@ -84,12 +89,31 @@ Si el anfitrión se va, el rol pasa a quien lleva más tiempo en la sala.
   una pieza de la bodega al cohete: cada etapa se marca en dorado si encaja o en coral si no, y dice por qué.
   También se puede elegir una etapa y usar **Poner**. Clic en una pieza puesta para moverla o quitarla.
   Hay **Deshacer**, zoom, y un control por etapa para cargar menos combustible. Los demás lo ven en vivo.
+- **Ver dónde encaja:** toca una pieza de la bodega y en el cohete aparece, dorada y latiendo, el lugar exacto
+  donde quedaría en cada etapa (✓), o por qué no entra (✗). Toca ese lugar para ponerla. La pieza llega
+  volando desde la bodega y encaja con un "clac"; al quitarla, se suelta y sale. **Reemplazar…** (en la ficha
+  de una pieza puesta) muestra las piezas que pueden ir en su lugar, con ▲ lo que mejora y ▼ lo que empeora.
 - **Reglas de encaje:** cada etapa quema un solo combustible; el equipo se cuelga de puntos de montaje que
   traen los tanques y la cápsula; las patas necesitan un cuerpo; la cápsula y la cofia van arriba.
 - **Números en vivo:** masa, empuje/peso, Δv frente a lo que pide la misión, energía, integridad y costo,
   más el plan de vuelo tramo por tramo. Pasa el mouse por un número para ver qué significa.
 - **Revisión antes de despegar:** lo crítico impide despegar, las advertencias son un riesgo aceptado y las
   mejoras son opcionales. Al pasar de Validación a Vuelo se cobra el combustible.
+- **Vuelo (etapas 6 a 8):** la nave vuela a la Luna y vuelve, tramo por tramo, con un mapa del viaje.
+  **Vuelo** elige cuánto Δv quemar en cada encendido: el guiado no es perfecto, así que quedarse corto pide
+  otro encendido y pasarse gasta combustible que después falta. **Ingeniería** maneja la energía (normal o
+  ahorro) y repara. **Ciencia** busca el Prisma en la superficie (gasta batería). **Comercio** paga los
+  repuestos. Detrás de la Luna no hay señal sin satélite repetidor, y los encendidos pierden precisión.
+- **Emergencias:** un motor, la antena, las patas o el espectrómetro pueden fallar; las piezas del mercado
+  negro con defectos ocultos fallan más. Cada emergencia ofrece salidas, y cada salida pide que la acepten
+  ciertos roles.
+- **Evaluación (etapa 9):** el resultado, los números del vuelo y lo que se aprende de las decisiones.
+  Volver con el Prisma completa la misión y desbloquea Life on Mars.
+- **Tutoriales:** la primera vez que llegas a algo nuevo (la sala, el mercado, el constructor, el vuelo…)
+  aparece un panel corto que resalta la parte de la pantalla que explica. Algunos pasos te piden hacer la
+  acción (elegir rol, abrir una ficha, poner una pieza, encender los motores) y esperan a que la hagas. Cada
+  rol ve lo suyo. Se pueden saltar, y repetir desde el botón **Tutoriales** (en la partida, arriba; en el lobby,
+  en Ajustes ⚙).
 - **Reconexión:** si recargas la página o se corta la red en plena misión, vuelves a tu lugar con tu rol.
   Mientras tanto, otro tripulante puede cubrirlo. Si cerraste la pestaña, entra otra vez con el código.
 
@@ -139,6 +163,7 @@ ad-astra/
 │   ├── desk.js         Mesa de misión: etapas y un escritorio por rol
 │   ├── marketview.js   Mercado, mercado negro y bodega
 │   ├── builder.js      Constructor de cohetes
+│   ├── flightview.js   El vuelo: mapa, paneles por rol, emergencias y resultado
 │   ├── partart.js      Dibujos de las piezas
 │   ├── assembly.js     Reglas de armado (también las usa el servidor)
 │   ├── market.js       Reglas del mercado (también las usa el servidor)
@@ -159,7 +184,8 @@ ad-astra/
 │   ├── chat.js         Mensajes del chat
 │   ├── game.js         Las reglas de la partida: escenas, etapas y permisos
 │   ├── economy.js      Presupuesto, compras y bodega
-│   └── build.js        Armado del cohete
+│   ├── build.js        Armado del cohete
+│   └── flight.js       El vuelo: encendidos, energía y emergencias
 ├── tests/simulate.js   Prueba con jugadores simulados
 └── render.yaml         Cómo se publica en Render (link fijo)
 ```
@@ -172,11 +198,14 @@ ad-astra/
 | Cambiar cuánto mejora cada rareza o estado       | `js/catalog.js` → `GRADE` y `CONDITIONS`             |
 | Cambiar los tramos del viaje o sus pérdidas      | `js/flightplans.js`                                  |
 | Cambiar el presupuesto de una misión             | `js/missions.js` → `budget`                          |
+| Duración, luz y señal de cada tramo del viaje     | `js/flightplans.js`                                  |
+| Precisión, fallas y costos de reparación en vuelo | `server/flight.js` → `GUIDANCE` y constantes de arriba |
 | Qué pieza encaja dónde (ranuras, puntos de montaje) | `js/catalog.js` → `FITTING` y `js/assembly.js`    |
 | Poner el dibujo final de una pieza               | Guarda la imagen en `assets/parts/` y agrégala en `js/partart.js` → `IMAGES` |
 | Vendedores, inspecciones y novedades del mercado | `js/market.js` → `SELLERS`, `INSPECTIONS`, `MARKET_EVENTS` |
 | Cómo se muestra una pieza (columnas, formatos)   | `js/partinfo.js`                                     |
 | Cambiar qué piezas exige una misión              | `js/missions.js` → `requirements`                    |
+| Textos y pasos de los tutoriales                 | `js/tutorials.js`                                    |
 | Cambiar los textos del prólogo o del informe     | `js/story.js`                                        |
 | Poner un dibujo final en la historia             | Guarda la imagen en `assets/story/` y agrégala en `js/art.js` → `IMAGES` |
 | Cambiar la ficha de una misión o sus etapas      | `js/missions.js`                                     |

@@ -132,6 +132,19 @@ send(ines, { type: 'build:remove', uid: top().mounted.at(-1) }); // la batería 
 check('una pieza puesta en el cohete no se puede devolver al mercado', Boolean(send(meche, { type: 'market:sell', uid: capsuleUid }).error));
 check('lo que solo sabe el servidor (el historial para deshacer) no se envía', !('secret' in publicState(state)) && !JSON.stringify(publicState(state)).includes('"undo"'));
 
+// Reemplazar: el motor orbital de arriba por otro igual que estaba en la bodega.
+const engineUid = data().rocket.stages[4].engines[0];
+const spareEngine = free('engine-orbital');
+const beforeSwap = JSON.stringify(data().rocket);
+const swapped = send(ines, { type: 'build:replace', uid: engineUid, with: spareEngine });
+check('reemplazar cambia la pieza en el mismo lugar, en un solo paso',
+  !swapped.error && data().rocket.stages[4].engines[0] === spareEngine && !installedUids(data().rocket).includes(engineUid));
+const badSwap = send(ines, { type: 'build:replace', uid: spareEngine, with: free('battery') ?? 'p0' });
+check(`no se cambia un motor por un equipo, y el cohete queda igual ("${badSwap.error}")`, Boolean(badSwap.error) && data().rocket.stages[4].engines[0] === spareEngine);
+check('solo Ingeniería reemplaza', Boolean(send(meche, { type: 'build:replace', uid: spareEngine, with: engineUid }).error));
+send(ines, { type: 'build:undo' });
+check('y se puede deshacer', JSON.stringify(data().rocket) === beforeSwap);
+
 console.log('\n4) El cohete armado es el mismo que calcula la física');
 const built = analyzeRocket(toPhysicsStages(data().rocket, data().economy.inventory));
 const reference = analyzeRocket(buildFromBlueprint(blueprint).stages);

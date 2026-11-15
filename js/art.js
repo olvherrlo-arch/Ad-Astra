@@ -268,6 +268,67 @@ const ART = {
     keyLine(ctx, home, 1.8);
   },
 
+  /** El repetidor: la Luna tapa la señal; el satélite en órbita la rebota hacia la Tierra. */
+  relay: (ctx) => {
+    space(ctx, 77);
+    // La Tierra, a la izquierda
+    const home = circle(ctx, 62, 160, 40);
+    paperFill(ctx, home);
+    inkFill(ctx, home, INK.teal);
+    shade(ctx, 62, 160, 40, 0.4);
+    keyLine(ctx, home, 2.2);
+    // La Luna, con su cara oculta (derecha) en sombra
+    const mx = 330, my = 170, mr = 74;
+    const moonDisc = circle(ctx, mx, my, mr);
+    paperFill(ctx, moonDisc);
+    inkFill(ctx, moonDisc, halftone(ctx, INK.navy, 0.12, 3.4));
+    ctx.save();
+    moonDisc();
+    ctx.clip();
+    inkFill(ctx, () => { ctx.beginPath(); ctx.rect(mx + 6, my - mr, mr, mr * 2); }, halftone(ctx, INK.navy, 0.75, 3));
+    ctx.restore();
+    keyLine(ctx, moonDisc, 2.4, INK.paper);
+    // La nave en el lado oculto y la señal bloqueada (línea coral cortada)
+    paperFill(ctx, circle(ctx, mx + mr + 26, my + 6, 6), INK.coral);
+    ctx.save();
+    ctx.setLineDash([6, 6]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = INK.coral;
+    ctx.beginPath();
+    ctx.moveTo(mx + mr + 20, my + 6);
+    ctx.lineTo(mx + mr - 4, my + 4);
+    ctx.stroke();
+    // La señal que sí llega: nave → satélite → Tierra (dorada)
+    const sx = 360, sy = 58;
+    ctx.strokeStyle = INK.gold;
+    ctx.lineWidth = 2.4;
+    ctx.beginPath();
+    ctx.moveTo(mx + mr + 26, my);
+    ctx.lineTo(sx + 8, sy + 8);
+    ctx.lineTo(96, 140);
+    ctx.stroke();
+    ctx.restore();
+    // La órbita del satélite
+    ctx.strokeStyle = withAlpha(INK.paper, 0.35);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(mx, my, mr + 46, mr + 60, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // El satélite repetidor
+    for (const side of [-1, 1]) {
+      const wing = box(ctx, sx + side * 12 - (side < 0 ? 18 : 0), sy - 5, 18, 10, 1);
+      paperFill(ctx, wing, INK.teal);
+      keyLine(ctx, wing, 1.4);
+    }
+    const body = box(ctx, sx - 8, sy - 9, 16, 18, 2);
+    paperFill(ctx, body);
+    inkFill(ctx, body, INK.gold);
+    keyLine(ctx, body, 1.6);
+    starPath(ctx, sx, sy - 22, 7, 2);
+    ctx.fillStyle = INK.gold;
+    ctx.fill();
+  },
+
   /** Despegue. */
   rocket: (ctx) => {
     space(ctx, 13);

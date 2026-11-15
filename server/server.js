@@ -85,10 +85,10 @@ const serveFile = async (req, res) => {
 };
 
 /** `countdownSeconds` y `rejoinGraceMs` se pueden acortar en las pruebas. */
-export const createGameServer = ({ countdownSeconds = COUNTDOWN_SECONDS, rejoinGraceMs = REJOIN_GRACE_MS } = {}) => {
+export const createGameServer = ({ countdownSeconds = COUNTDOWN_SECONDS, rejoinGraceMs = REJOIN_GRACE_MS, pickRoles = undefined } = {}) => {
   const httpServer = createServer(serveFile);
   const io = new Server(httpServer);
-  const store = new RoomStore({ countdownSeconds, rejoinGraceMs });
+  const store = new RoomStore({ countdownSeconds, rejoinGraceMs, pickRoles });
 
   io.on('connection', (socket) => {
     registerRoomHandlers(io, socket, store);

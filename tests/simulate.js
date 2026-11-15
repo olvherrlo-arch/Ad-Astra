@@ -7,6 +7,7 @@ import { io as connect } from 'socket.io-client';
 import { getMission } from '../js/missions.js';
 import { EVENTS, LOBBY_MAP, MAX_PLAYERS, ROLES } from '../js/shared.js';
 import { BRIEFINGS, PROLOGUE } from '../js/story.js';
+import { drawRoles } from '../server/rooms.js';
 import { createGameServer } from '../server/server.js';
 
 const TIMEOUT_MS = 3_000;
@@ -61,7 +62,10 @@ const readToEnd = async (hostClient, scene) => {
 };
 
 const run = async () => {
-  const server = createGameServer({ countdownSeconds: 1, rejoinGraceMs: 400 });
+  // En la partida real los roles se sortean; aquí van en orden de llegada para saber quién es quién:
+  // el primero Vuelo, luego Comercio, Ingeniería y Ciencia.
+  const fixedOrder = ['pilot', 'merchant', 'engineer', 'scientist'];
+  const server = createGameServer({ countdownSeconds: 1, rejoinGraceMs: 400, pickRoles: (crew) => crew.map((_p, i) => fixedOrder[i] ?? null) });
   const port = await server.listen(0);
   const url = `http://localhost:${port}`;
   console.log(`Servidor de prueba en ${url}\n`);
@@ -138,28 +142,25 @@ const run = async () => {
   check('el anfitrión sí (y el valor se ajusta al paso: 1.6 → 1.5)', room().settings.playerSpeed === 1.5 && room().isPublic);
   check('la sala no aparece en la lista pública cuando está llena', (await p5.emitWithAck(EVENTS.ROOMS_LIST)).length === 0);
 
-  console.log('\n5) Roles y Listo');
+  console.log('\n5) Roles al azar y Listo');
+  check('en el lobby nadie tiene rol: se sortean al despegar', players().every((p) => p.role === null));
   p2.emit(EVENTS.PLAYER_SET_READY, true);
   await pause(100);
-  check('sin rol no se puede marcar Listo', seatOf(p2).ready === false);
-  host.emit(EVENTS.PLAYER_SET_ROLE, 'pilot');
-  p2.emit(EVENTS.PLAYER_SET_ROLE, 'engineer');
+  check('se marca Listo sin elegir rol', seatOf(p2).ready === true);
+  p2.emit(EVENTS.PLAYER_SET_READY, false);
   await pause(100);
-  p3.emit(EVENTS.PLAYER_SET_ROLE, 'engineer');
-  p4.emit(EVENTS.PLAYER_SET_ROLE, 'capitán');
+  check('y se puede desmarcar', seatOf(p2).ready === false);
+  p2.emit('player:setRole', 'pilot');
   await pause(100);
-  check('cada quien toma un rol libre', seatOf(host).role === 'pilot' && seatOf(p2).role === 'engineer');
-  check('un rol ocupado o inventado no se puede tomar', seatOf(p3).role === null && seatOf(p4).role === null);
+  check('ya no se puede elegir rol a mano', seatOf(p2).role === null);
+  const draws = Array.from({ length: 300 }, () => drawRoles([{}, {}, {}, {}]));
+  check('el sorteo da a cada uno un rol distinto, siempre', draws.every((d) => new Set(d).size === ROLES.length && d.every((r) => ROLES.some((x) => x.id === r))));
+  check('y es al azar: a cada rol le toca ser el primero alguna vez',
+    ROLES.every((role) => draws.filter((d) => d[0] === role.id).length > 30));
+  const pair = drawRoles([{}, {}]);
+  check('con dos jugadores se sortean dos roles y los otros quedan libres', pair.length === 2 && new Set(pair).size === 2);
   p2.emit(EVENTS.PLAYER_SET_READY, true);
   await pause(100);
-  check('con rol sí se marca Listo', seatOf(p2).ready === true);
-  p2.emit(EVENTS.PLAYER_SET_ROLE, 'merchant');
-  await pause(100);
-  check('cambiar de rol quita el Listo y libera el rol anterior', seatOf(p2).role === 'merchant' && seatOf(p2).ready === false);
-  p3.emit(EVENTS.PLAYER_SET_ROLE, 'engineer');
-  p4.emit(EVENTS.PLAYER_SET_ROLE, 'scientist');
-  await pause(100);
-  check('los 4 roles quedan repartidos sin repetirse', new Set(players().map((p) => p.role)).size === ROLES.length);
 
   console.log('\n6) Cuenta regresiva');
   host.emit(EVENTS.GAME_START);
@@ -176,15 +177,13 @@ const run = async () => {
   const cancelled = waitFor(host, EVENTS.COUNTDOWN, (c) => c.cancelled);
   p4.disconnect();
   check(`si alguien sale, se cancela ("${(await cancelled).cancelled}")`, room().phase === 'lobby');
-  check('en el lobby, quien se desconecta deja libre su lugar y su rol', players().length === 3 && !players().some((p) => p.role === 'scientist'));
+  check('en el lobby, quien se desconecta deja libre su lugar', players().length === 3);
   check('la sala con lugar libre aparece en la lista pública', (await p5.emitWithAck(EVENTS.ROOMS_LIST)).some((r) => r.code === code));
 
   check('el Jugador 5 entra al lugar libre', (await join(p5, code, 'Jugador 5')).ok);
   host.emit(EVENTS.GAME_START);
   await pause(100);
-  check('no se despega si alguien no tiene rol', room().phase === 'lobby');
-  p5.emit(EVENTS.PLAYER_SET_ROLE, 'scientist');
-  await pause(100);
+  check('no se despega si el que acaba de entrar no marcó Listo', room().phase === 'lobby');
   p5.emit(EVENTS.PLAYER_SET_READY, true);
   await pause(100);
   const playing = waitFor(p3, EVENTS.ROOM_UPDATE, (r) => r.phase === 'playing');
@@ -192,6 +191,7 @@ const run = async () => {
   host.emit(EVENTS.GAME_START);
   await playing;
   check('con todos listos, la misión comienza', room().phase === 'playing');
+  check('al despegar, a cada tripulante le toca un rol distinto', new Set(players().map((p) => p.role)).size === ROLES.length && players().every((p) => p.role));
   const initial = await firstState;
   check('la partida arranca en el prólogo, sin misión elegida',
     initial.data.scene === 'prologue' && initial.data.page === 0 && initial.data.missionId === null);
@@ -211,10 +211,10 @@ const run = async () => {
   const afterPrologue = await readToEnd(host, 'prologue');
   check(`al terminar las ${PROLOGUE.pages.length} páginas del prólogo se abre la constelación`,
     afterPrologue.data.scene === 'select' && afterPrologue.data.campaign.prologueSeen === true);
-  check('solo la primera misión está disponible',
-    afterPrologue.data.campaign.missions.moon === 'available' && afterPrologue.data.campaign.missions.mars === 'locked');
-  const locked = await act(host, { type: 'mission:start', missionId: 'mars' });
-  check(`una misión bloqueada no se puede iniciar ("${locked.error}")`, Boolean(locked.error) && room().state.data.scene === 'select');
+  check('por ahora las tres misiones están desbloqueadas',
+    ['moon', 'mars', 'exodus'].every((id) => afterPrologue.data.campaign.missions[id] === 'available'));
+  const unbuilt = await act(host, { type: 'mission:start', missionId: 'mars' });
+  check(`una misión sin construir todavía no se puede iniciar ("${unbuilt.error}")`, Boolean(unbuilt.error) && room().state.data.scene === 'select');
   check('un invitado no puede iniciar la misión', Boolean((await act(p2, { type: 'mission:start', missionId: 'moon' })).error));
   const briefing = await act(host, { type: 'mission:start', missionId: 'moon' });
   check('el anfitrión inicia Dark Side of the Moon: empieza el informe y la misión queda "en curso"',
@@ -339,8 +339,8 @@ const run = async () => {
   const backToLobby = waitFor(p2, EVENTS.ROOM_UPDATE, (r) => r.phase === 'lobby');
   host.emit(EVENTS.GAME_END);
   const lobbyAgain = await backToLobby;
-  check('al volver al lobby se conservan los roles y todos vuelven a marcar Listo',
-    lobbyAgain.players.length === 4 && lobbyAgain.players.every((p) => p.role && !p.ready));
+  check('al volver al lobby los roles se borran (se sortean otra vez) y todos vuelven a marcar Listo',
+    lobbyAgain.players.length === 4 && lobbyAgain.players.every((p) => !p.role && !p.ready));
   const kicked = waitFor(p2, EVENTS.KICKED);
   const kickNotice = waitFor(host, EVENTS.PLAYER_LEFT, (n) => n.reason === 'kicked');
   host.emit(EVENTS.ROOM_KICK, { playerId: idOf(p2), ban: false });
@@ -361,12 +361,10 @@ const run = async () => {
   const solo = await connectClient('c7');
   const soloRoom = remember(solo, await solo.emitWithAck(EVENTS.ROOM_CREATE, { playerName: 'Sola', clientId: 'c7' }));
   const soloCode = soloRoom.data.room.code;
-  solo.emit(EVENTS.PLAYER_SET_ROLE, 'pilot');
-  await pause(100);
   const soloPlaying = waitFor(solo, EVENTS.STATE_SYNC, (s) => s.version === 0);
   solo.emit(EVENTS.GAME_START);
   await soloPlaying;
-  check('una persona con rol puede despegar sola', server.store.get(soloCode).phase === 'playing');
+  check('una persona puede despegar sola, y le toca un rol', server.store.get(soloCode).phase === 'playing' && [...server.store.get(soloCode).players.values()][0].role === 'pilot');
   await readToEnd(solo, 'prologue');
   await act(solo, { type: 'mission:start', missionId: 'moon' });
   await readToEnd(solo, 'briefing');
@@ -386,6 +384,9 @@ const run = async () => {
     second.data.scene === 'select' && second.data.campaign.missions.moon === 'in_progress');
   const replay = await act(solo, { type: 'story:replay' });
   check('el anfitrión puede volver a mostrar el prólogo desde la constelación', replay.state?.data.scene === 'prologue');
+  const skipped = await act(solo, { type: 'story:skip' });
+  check('y saltarlo: vuelve a la constelación', skipped.state?.data.scene === 'select');
+  await act(solo, { type: 'story:replay' });
 
   solo.disconnect();
   await pause(100);
