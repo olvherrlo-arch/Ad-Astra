@@ -6,6 +6,7 @@
  * Con "reducir movimiento" del sistema, es más corta y sin cámara.
  */
 import { drawArt } from './art.js';
+import { reducedMotion } from './settings.js';
 
 const SHOW_MS = 2_600;
 
@@ -14,7 +15,7 @@ const SHOW_MS = 2_600;
  */
 export const playCinematic = ({ art, kicker = '', title, text = '', camera = 'in', tone }) => {
   document.querySelector('.cine-shot')?.remove();
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = reducedMotion();
   const shot = document.createElement('div');
   shot.className = `cine-shot${tone ? ` ${tone}` : ''}`;
   shot.setAttribute('role', 'status');

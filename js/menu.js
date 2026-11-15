@@ -4,16 +4,12 @@
  * Se maneja con mouse o teclado (↑ ↓ para moverse, Enter para elegir, Esc para volver).
  */
 import { createRoom, joinRoom, listPublicRooms, on, session } from './connection.js';
+import { openCredits } from './credits.js';
+import { openSettings } from './settings.js';
 import { MAX_NAME_LENGTH, ROOM_CODE_LENGTH } from './shared.js';
 
-// Edita esto con los nombres de tu equipo.
-const CREDITS = [
-  { role: 'Diseño y arte', names: 'Tu equipo' },
-  { role: 'Programación', names: 'Tu equipo' },
-];
-
 const PILOT_NAME_KEY = 'adastra.pilotName';
-const TOP_SECTIONS = ['play', 'options', 'credits'];
+const TOP_SECTIONS = ['play'];
 // Orden para cerrar con Esc: primero lo más profundo.
 const CLOSE_ORDER = ['code', 'find', 'multiplayer', ...TOP_SECTIONS];
 
@@ -60,17 +56,8 @@ const MENU_HTML = `
         </div>
       </div>
 
-      <button type="button" class="menu-btn level-0" data-nav data-toggle="options" aria-expanded="false">Options</button>
-      <div class="submenu menu-panel" id="section-options" hidden>
-        <label class="field">
-          <span>Nombre de piloto</span>
-          <input data-nav data-pilot-name maxlength="${MAX_NAME_LENGTH}" />
-        </label>
-        <p class="menu-panel-note">Se guarda en este navegador.</p>
-      </div>
-
-      <button type="button" class="menu-btn level-0" data-nav data-toggle="credits" aria-expanded="false">Credits</button>
-      <dl class="submenu menu-panel credits" id="section-credits" hidden></dl>
+      <button type="button" class="menu-btn level-0" data-nav data-action="options" aria-haspopup="dialog">Options</button>
+      <button type="button" class="menu-btn level-0" data-nav data-action="credits" aria-haspopup="dialog">Credits</button>
     </nav>
 
     <p class="menu-error" role="alert" hidden></p>
@@ -213,6 +200,12 @@ export const mountMenu = (container) => {
     const toggleButton = event.target.closest('[data-toggle]');
     if (toggleButton) toggle(toggleButton.dataset.toggle);
     if (event.target.closest('[data-action="create"]')) enterLobby(createRoom);
+    const opener = event.target.closest('[data-action="options"], [data-action="credits"]');
+    if (opener) {
+      const back = () => opener.focus();
+      if (opener.dataset.action === 'options') openSettings({ onClose: back });
+      else openCredits({ onClose: back });
+    }
   });
 
   // Flechas para moverse entre lo visible; Esc cierra el submenú más profundo.
@@ -256,19 +249,6 @@ export const mountMenu = (container) => {
     if (codeInput.value.length !== ROOM_CODE_LENGTH) return;
     enterLobby((name) => joinRoom(codeInput.value, name));
   });
-
-  // ---------- Créditos ----------
-  container.querySelector('#section-credits').append(
-    ...CREDITS.map(({ role, names }) => {
-      const row = document.createElement('div');
-      const term = document.createElement('dt');
-      const detail = document.createElement('dd');
-      term.textContent = role;
-      detail.textContent = names;
-      row.append(term, detail);
-      return row;
-    }),
-  );
 
   // ---------- Estado inicial ----------
   showConnection(session.connected);

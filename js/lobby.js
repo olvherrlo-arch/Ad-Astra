@@ -12,6 +12,7 @@ import { drawAstronaut, FRAME_COUNT, IDLE_FRAME, WALK_FPS } from './character.js
 import { on, sendMove, session } from './connection.js';
 import { mountHud } from './hud.js';
 import { COUNTDOWN_SECONDS, LOBBY_MAP, clampToFloor, roleName, startBlocker } from './shared.js';
+import { canvasDpr, getSettings, onSettings } from './settings.js';
 import { sounds } from './sound.js';
 import {
   INK, MISREGISTER, UI_FONT, condensed, createRng, halftone, halftoneGradient, inkFill, keyLine,
@@ -117,7 +118,7 @@ export const mountLobby = (container) => {
 
   // ---------- Tamaño y cámara ----------
   const resize = () => {
-    view.dpr = window.devicePixelRatio || 1;
+    view.dpr = canvasDpr(3);
     canvas.width = Math.round(canvas.clientWidth * view.dpr);
     canvas.height = Math.round(canvas.clientHeight * view.dpr);
     const fit = Math.min(canvas.clientWidth / LOBBY_MAP.width, canvas.clientHeight / LOBBY_MAP.height);
@@ -158,7 +159,7 @@ export const mountLobby = (container) => {
     const length = Math.hypot(dx, dy);
     me.moving = length > 0;
     if (me.moving) {
-      const speed = LOBBY_MAP.baseSpeed * (session.room.settings.playerSpeed ?? 1) * dt;
+      const speed = LOBBY_MAP.baseSpeed * (session.room.settings.playerSpeed ?? 1) * getSettings().walkSpeed * dt;
       const stepX = (dx / length) * speed, stepY = (dy / length) * speed;
       const before = { x: me.x, y: me.y };
       const nextX = clampToFloor(me.x + stepX, me.y).x;
@@ -982,7 +983,7 @@ export const mountLobby = (container) => {
 
   // ---------- Entrada ----------
   const onKeyDown = (event) => {
-    if (isTyping() || hud.isBlocking()) return;
+    if (isTyping() || hud.isBlocking() || document.querySelector('.settings-screen, .credits-screen')) return;
     if (KEY_DIRECTIONS[event.code]) {
       pressed.add(event.code);
       event.preventDefault();
@@ -1040,6 +1041,7 @@ export const mountLobby = (container) => {
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(canvas);
   resize();
+  offs.push(onSettings(resize)); // calidad de imagen
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', onBlur);

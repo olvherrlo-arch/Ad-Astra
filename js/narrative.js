@@ -5,7 +5,9 @@
  * - El texto se escribe solo, oración por oración. Un clic sobre el texto (o Espacio) lo muestra entero.
  * - Si la escena trae una lista (qué llevar, qué hacer), sus puntos aparecen uno tras otro.
  * Todos ven la misma escena. El anfitrión pasa con SIGUIENTE (o las flechas) y puede volver o saltar
- * la historia; los demás avisan "Ya leí". Nada avanza solo.
+ * la historia; los demás presionan SIGUIENTE cuando terminan de leer (le avisa al anfitrión que puede seguir).
+ * Al empezar una historia aparece una tarjeta de título; cada escena entra con fundido, barrido del título
+ * y viñeta de cine. Nada avanza solo.
  * Los textos están en js/story.js y las ilustraciones en js/art.js.
  */
 import { drawArt } from './art.js';
@@ -13,6 +15,7 @@ import { isHost, on, sendAction, session } from './connection.js';
 import { colorHex } from './shared.js';
 import { sounds } from './sound.js';
 import { getStory } from './story.js';
+import { reducedMotion } from './settings.js';
 
 /** Después de pasar la escena, SIGUIENTE espera un momento: un doble clic no se salta una. */
 const TURN_LOCK_MS = 900;
@@ -20,13 +23,17 @@ const TYPE_MS = 24; //      milisegundos por letra
 const SENTENCE_PAUSE = 260; // pausa entre oraciones
 const LIST_STEP_MS = 320; // entre un punto de la lista y el siguiente
 
-const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const STORY_HTML = `
 <section class="story cine" aria-labelledby="story-heading">
   <div class="story-stage">
     <canvas class="story-art back" aria-hidden="true"></canvas>
     <canvas class="story-art front" aria-hidden="true"></canvas>
+    <div class="story-vignette" aria-hidden="true"></div>
+    <div class="story-title-card" aria-hidden="true" hidden>
+      <span class="story-title-kicker"></span>
+      <strong class="story-title-main"></strong>
+    </div>
     <div class="story-caption">
       <p class="story-kicker"></p>
       <h2 class="story-heading" id="story-heading" tabindex="-1"></h2>
@@ -42,9 +49,9 @@ const STORY_HTML = `
     <ul class="story-readers" aria-label="Quién ya leyó esta escena"></ul>
     <footer class="story-nav">
       <button type="button" class="story-back">Anterior</button>
-      <span class="story-progress" aria-live="polite"></span>
+      <span class="story-progress" aria-live="polite"><span class="story-count"></span><span class="story-dots" aria-hidden="true"></span></span>
       <button type="button" class="story-skip">Saltar</button>
-      <button type="button" class="story-read" aria-pressed="false">Ya leí</button>
+      <button type="button" class="story-read" aria-pressed="false">Siguiente</button>
       <button type="button" class="story-next">Siguiente</button>
     </footer>
     <p class="story-hint"></p>
@@ -145,6 +152,13 @@ export const mountNarrative = (container) => {
     front.classList.add('playing');
 
     $('.story-heading').textContent = page.heading;
+    // El título y el texto entran de nuevo en cada escena (barrido del título, ver css).
+    const panel = $('.story-text');
+    panel.classList.remove('turn');
+    stage.classList.remove('turn');
+    void panel.offsetWidth;
+    panel.classList.add('turn');
+    stage.classList.add('turn');
     const speaker = $('.story-speaker');
     speaker.hidden = !page.speaker;
     speaker.textContent = page.speaker ?? '';
@@ -177,10 +191,14 @@ export const mountNarrative = (container) => {
       const firstRender = shownPage === '';
       shownPage = pageKey;
       $('.story-kicker').textContent = story.title;
+      if (firstRender && page === 0) showTitleCard(story.title);
       changeScene(current, firstRender);
     }
 
-    $('.story-progress').textContent = `${page + 1}/${story.pages.length}`;
+    $('.story-count').textContent = `${page + 1}/${story.pages.length}`;
+    const dots = $('.story-dots');
+    if (dots.childElementCount !== story.pages.length) dots.replaceChildren(...story.pages.map(() => document.createElement('i')));
+    [...dots.children].forEach((dot, index) => dot.className = index < page ? 'seen' : index === page ? 'now' : '');
 
     // Quién ya leyó (el anfitrión no avisa: es quien pasa la escena).
     const others = session.room.players.filter((p) => p.id !== session.room.hostId && p.connected !== false);
@@ -207,15 +225,32 @@ export const mountNarrative = (container) => {
     const iRead = Boolean(readers[session.myId]);
     read.disabled = iRead || typing;
     read.setAttribute('aria-pressed', String(iRead));
-    read.textContent = iRead ? '✓ Ya leí' : 'Ya leí';
+    read.textContent = iRead ? '✓ Esperando al equipo' : 'Siguiente';
+    read.title = iRead ? 'Le avisaste al anfitrión que terminaste: pasa la escena cuando todos estén listos.' : 'Avísale al anfitrión que terminaste de leer';
     skipButton.textContent = skipArmed ? '¿Saltar para todos?' : 'Saltar';
 
     const waiting = others.filter((p) => !readers[p.id]).length;
     const hint = $('.story-hint');
     if (typing) hint.textContent = 'Clic en el texto (o Espacio) para verlo entero.';
-    else if (!host) hint.textContent = 'El anfitrión pasa la escena cuando todos terminan de leer.';
+    else if (!host) hint.textContent = iRead ? 'El anfitrión pasa la escena cuando todos están listos.' : 'Presiona SIGUIENTE cuando termines de leer.';
     else if (others.length === 0) hint.textContent = 'Tú pasas la escena. También puedes usar las flechas ← →.';
     else hint.textContent = waiting === 0 ? 'Todos ya leyeron: puedes seguir.' : `Falta que ${waiting === 1 ? 'lea 1 tripulante' : `lean ${waiting} tripulantes`}.`;
+  };
+
+  // ---------- Tarjeta de título (al empezar una historia) ----------
+  let titleTimer = 0;
+  const showTitleCard = (title) => {
+    const card = $('.story-title-card');
+    const [kicker, ...rest] = title.split(' · ');
+    $('.story-title-kicker').textContent = rest.length ? kicker : 'Ad Astra';
+    $('.story-title-main').textContent = rest.length ? rest.join(' · ') : title;
+    card.hidden = false;
+    card.classList.remove('leaving');
+    clearTimeout(titleTimer);
+    titleTimer = window.setTimeout(() => {
+      card.classList.add('leaving');
+      titleTimer = window.setTimeout(() => { card.hidden = true; }, 600);
+    }, reducedMotion() ? 900 : 2_400);
   };
 
   // ---------- Controles ----------
@@ -257,6 +292,7 @@ export const mountNarrative = (container) => {
     stopTyping();
     clearTimeout(lockTimer);
     clearTimeout(skipArmed);
+    clearTimeout(titleTimer);
     window.removeEventListener('keydown', onKeyDown);
     resizeObserver.disconnect();
     offs.forEach((off) => off());

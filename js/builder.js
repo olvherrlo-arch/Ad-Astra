@@ -35,6 +35,7 @@ import { conditionName, credits, force, mass, number, tierOf, versionColumns } f
 import { INK, UI_FONT, condensed, halftone, withAlpha } from './riso.js';
 import { validateRocket } from './rocket.js';
 import { canActAs } from './shared.js';
+import { reducedMotion } from './settings.js';
 
 const EMPTY_STAGE_HEIGHT = 46;
 const NEW_STAGE_HEIGHT = 40;
@@ -44,7 +45,6 @@ const FLY_MS = 520; //    lo que tarda una pieza en llegar a su lugar
 const LOCK_MS = 300; //   el "clac" al encajar
 const LEAVE_MS = 420; //  lo que tarda en salir una pieza quitada
 const easeOutBack = (t) => 1 + 2.2 * (t - 1) ** 3 + 1.2 * (t - 1) ** 2;
-const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const BUILDER_HTML = `
 <section class="builder" aria-label="Constructor de cohetes">

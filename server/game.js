@@ -10,7 +10,7 @@
  *   briefing  el informe de la misión elegida, página por página
  *   mission   la misión: los tripulantes caminan por la estación, la nave y la Luna (js/world.js)
  * En las escenas de lectura todos van en la misma página: el anfitrión la pasa, y cada
- * quien avisa "Ya leí" para que el anfitrión sepa cuándo seguir.
+ * quien presiona SIGUIENTE (`story:read`) para que el anfitrión sepa cuándo seguir.
  *
  * En la misión no hay "visto bueno": cada rol tiene tareas que se hacen con las manos (js/tasks.js,
  * server/world.js). `data.confirmed[rol]` se calcula solo: un rol está listo cuando terminó sus tareas
@@ -41,6 +41,7 @@ import { mapIdFor } from '../js/worldmaps.js';
 import { applyBuildAction, isBuildAction } from './build.js';
 import { applyEconomyAction, isEconomyAction, openEconomy } from './economy.js';
 import { applyFlightAction, isFlightAction, startFlight } from './flight.js';
+import { scoreAction } from './score.js';
 import { applyWorldAction, isWorldAction } from './world.js';
 
 const LOG_LIMIT = 30;
@@ -81,6 +82,7 @@ export const createInitialState = (campaign = freshCampaign()) => ({
     flight: null, //                 el vuelo en curso (server/flight.js)
     undoSteps: 0, //                 cuántos cambios del cohete se pueden deshacer
     ...freshWorld(), //              tareas hechas, lo que lleva cada quien, ventajas (server/world.js)
+    score: null, //                  puntaje de cada jugador y resumen final (server/score.js)
     campaign,
   },
   secret: { seed: randomInt(2 ** 31), vault: null, undo: [], ship: null },
@@ -131,9 +133,24 @@ const settle = (previous, merged) => {
  * Estado actual + acción → `{ state }` con el nuevo estado, o `{ error }` con el motivo del rechazo.
  * No toques sockets aquí: solo datos.
  * `heldRoles` = roles que tienen un tripulante conectado (si falta, se asume que están los cuatro).
- * @param {{ id: string, name: string, role: string | null, isHost: boolean, canActAs: (roleId: string) => boolean, heldRoles?: string[] }} actor
+ * `players` = los tripulantes de la sala (para repartir los bonos del puntaje).
+ * @param {{ id: string, name: string, role: string | null, isHost: boolean, canActAs: (roleId: string) => boolean, heldRoles?: string[], players?: { id: string, name: string, role: string | null }[] }} actor
  */
 export const applyAction = (state, action, actor) => {
+  const result = applyRules(state, action, actor);
+  if (result.error) return result;
+  // Cada acción aceptada puede sumar puntos (server/score.js compara el antes y el después).
+  const score = scoreAction(state.data, result.state.data, action, actor, actor.players ?? []);
+  return { state: { ...result.state, data: { ...result.state.data, score } } };
+};
+
+/**
+ * Las reglas de la partida, sin el puntaje.
+ * @param {any} state
+ * @param {any} action
+ * @param {{ id: string, name: string, role: string | null, isHost: boolean, canActAs: (roleId: string) => boolean, heldRoles?: string[] }} actor
+ */
+const applyRules = (state, action, actor) => {
   const { data } = state;
   /** @param {object} next  @param {string | (string | null)[] | null} [logText]  @param {object} [secretNext] */
   const commit = (next, logText, secretNext) => {
@@ -352,6 +369,7 @@ export const registerGameHandlers = (io, socket, store) => {
       isHost: room.hostId === player.id,
       canActAs: (roleId) => canActAs(players, player.id, roleId),
       heldRoles: ROLES.filter((role) => roleHolder(players, role.id)).map((role) => role.id),
+      players: players.map((p) => ({ id: p.id, name: p.name, role: p.role ?? null })),
     });
     if (result.error) return socket.emit(EVENTS.STATE_REJECTED, { message: result.error });
 

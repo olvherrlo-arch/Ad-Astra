@@ -35,7 +35,7 @@ const newGame = (seed, { extra = [], tweak = null } = {}) => {
   game.state.secret.seed = seed;
   game.send = (who, action) => {
     if (!isGameAction(action)) return { error: 'Acción mal formada.' };
-    const result = applyAction(game.state, action, who);
+    const result = applyAction(game.state, action, { ...who, players: crew });
     if (result.state) game.state = result.state;
     return result;
   };
@@ -289,6 +289,62 @@ lander.send(ines, { type: 'flight:resolve', option: 'repair', role: 'engineer' }
 check('e Ingeniería termina la reparación: la misión sigue en la Luna', lander.data().flight.phase === 'ready' && lander.stage() === 'surface');
 check('Vuelo despliega el panel de campo y recarga la batería',
   Boolean(lander.send(caro, { type: 'flight:solar' }).error) && !lander.send(ana, { type: 'flight:solar' }).error && lander.data().flight.solar === true);
+
+console.log('\n6) Puntaje individual y resumen final');
+{
+  const scored = newGame(42);
+  const atLaunch = scored.data().score;
+  check('al despegar ya hay puntos por tareas, armado y compras',
+    atLaunch.players[ines.id]?.notes.some((n) => n.label === 'Cohete aprobado para despegar')
+    && atLaunch.players[meche.id]?.notes.some((n) => n.label === 'Compras para la misión')
+    && atLaunch.players[ana.id]?.notes.some((n) => n.label === '¡Despegue!'));
+  check('cada rol suma puntos con sus tareas', crew.every((member) => (atLaunch.players[member.id]?.points ?? 0) > 0));
+  // Una tarea ya hecha no vuelve a sumar: el servidor la rechaza y el puntaje no cambia.
+  const pointsBefore = atLaunch.players[caro.id].points;
+  const repeat = scored.send(caro, { type: 'task:done', id: 'briefing.scope', quality: 1 });
+  check('repetir una acción no suma dos veces', Boolean(repeat.error) && scored.data().score.players[caro.id].points === pointsBefore);
+  // Precisión: un encendido apuntando bien vale más que uno apuntando mal (mismo Δv).
+  const burnPoints = (aim) => {
+    const trial = newGame(7);
+    trial.ship().perks = {};
+    const before = trial.data().score.players[ana.id].points;
+    trial.send(ana, { type: 'flight:burn', dv: 1_000, aim });
+    return trial.data().score.players[ana.id].points - before;
+  };
+  const [good, bad] = [burnPoints(1), burnPoints(0)];
+  check(`la precisión cuenta: buen encendido ${good} pts contra ${bad} apuntando mal`, good > bad && bad > 0);
+  // La precisión que mide un minijuego se guarda; una inventada fuera de rango se recorta a 0..1.
+  let early = { state: createInitialState() };
+  const sendEarly = (who, action) => {
+    const result = applyAction(early.state, action, { ...who, players: crew });
+    if (result.state) early.state = result.state;
+    return result;
+  };
+  while (early.state.data.scene === 'prologue') sendEarly(ana, { type: 'story:next' });
+  sendEarly(ana, { type: 'mission:start', missionId: 'moon' });
+  while (early.state.data.scene === 'briefing') sendEarly(ana, { type: 'story:next' });
+  sendEarly(caro, { type: 'task:done', id: 'briefing.scope', quality: 0.5 });
+  sendEarly(ana, { type: 'task:done', id: 'briefing.window', quality: 7 });
+  const notesOf = (who) => early.state.data.score.players[who.id].notes;
+  check('la precisión que mide el minijuego queda registrada', notesOf(caro)[0].q === 0.5 && early.state.data.score.players[caro.id].measured.count === 1);
+  check('una precisión fuera de rango se recorta (nunca más que perfecto)', notesOf(ana)[0].q === 1);
+  fly(scored);
+  const final = scored.data().score.final;
+  check(`al terminar hay resumen del equipo (${final?.teamPoints} pts, ${final?.objectivesDone}/${final?.objectivesTotal} objetivos)`,
+    Boolean(final) && final.ok === true && final.teamPoints > 0 && final.objectivesDone > 0 && final.objectivesDone <= final.objectivesTotal);
+  check('el resumen trae lo mejor del equipo', final.highlights.length > 0);
+  check('los puntos del equipo son la suma de los de cada uno',
+    final.teamPoints === Object.values(scored.data().score.players).reduce((sum, p) => sum + p.points, 0));
+  check('todos reciben el bono de misión cumplida', crew.every((member) => scored.data().score.players[member.id].notes.some((n) => n.label === 'Misión cumplida')));
+  check('el puntaje viaja en el estado público (todos ven lo mismo)', JSON.stringify(publicState(scored.state)).includes('"teamPoints"'));
+  const frozen = JSON.stringify(scored.data().score);
+  scored.send(ana, { type: 'stage:advance' });
+  check('después del resumen el puntaje no cambia solo', JSON.stringify(scored.data().score) === frozen);
+  check('elegir otra misión empieza un puntaje nuevo', (() => {
+    const again = newGame(5);
+    return Object.keys(again.data().score.players).length > 0 && again.data().score.final === null;
+  })());
+}
 
 console.log(failures === 0 ? `\nTODO OK ✅ (${checks} verificaciones del vuelo)` : `\n${failures} verificación(es) fallaron ❌`);
 process.exit(failures === 0 ? 0 : 1);

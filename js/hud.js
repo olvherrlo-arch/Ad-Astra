@@ -13,6 +13,7 @@ import { getMe, isHost, leaveRoom, on, session, setPrivacy, setReady, startGame 
 import { openCustomize } from './customize.js';
 import { openTutorialLibrary } from './tutorial.js';
 import { GAME_SETTINGS, formatSetting, startBlocker } from './shared.js';
+import { onSettings, openSettings } from './settings.js';
 import { getSoundPrefs, setSoundPrefs, sounds } from './sound.js';
 
 const ICONS = {
@@ -49,6 +50,7 @@ const HUD_HTML = `
     <li><kbd>E</kbd> junto al vestidor: personalizar</li>
     <li><kbd>Enter</kbd>: chat <kbd>Esc</kbd>: cerrar</li>
   </ul>
+  <button class="hud-tutorials hud-more-options">Todas las opciones…</button>
   <button class="hud-tutorials">Tutoriales</button>
   <button class="hud-leave">Abandonar sala</button>
 </section>
@@ -121,13 +123,21 @@ export const mountHud = (container) => {
   // ---------- Ajustes ----------
   const volume = $('[data-volume]');
   const mute = $('[data-mute]');
-  const prefs = getSoundPrefs();
-  volume.value = String(prefs.volume);
-  mute.checked = prefs.muted;
+  const showSound = () => {
+    const prefs = getSoundPrefs();
+    volume.value = String(prefs.volume);
+    mute.checked = prefs.muted;
+  };
+  showSound();
+  const offSettings = onSettings(showSound);
+  $('.hud-more-options').addEventListener('click', () => {
+    setPanel('settings', false);
+    openSettings();
+  });
   volume.addEventListener('input', () => setSoundPrefs({ volume: Number(volume.value) }));
   mute.addEventListener('change', () => setSoundPrefs({ muted: mute.checked }));
   $('.hud-leave').addEventListener('click', leaveRoom);
-  $('.hud-tutorials').addEventListener('click', () => {
+  $('.hud-tutorials:not(.hud-more-options)').addEventListener('click', () => {
     setPanel('settings', false);
     openTutorialLibrary();
   });
@@ -275,6 +285,7 @@ export const mountHud = (container) => {
       closeCustomize?.();
       window.removeEventListener('keydown', onKeyDown);
       offs.forEach((off) => off());
+      offSettings();
       chat.destroy();
     },
   };

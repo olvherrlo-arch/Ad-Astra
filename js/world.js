@@ -25,6 +25,7 @@ import { mountChat } from './chat.js';
 import { playCinematic } from './cinematic.js';
 import { endGame, isHost, on, sendAction, sendMove, session } from './connection.js';
 import { mountFlight } from './flightview.js';
+import { mountScore } from './scoreview.js';
 import { frameLoop } from './frame.js';
 import { MARKET_STAGES } from './market.js';
 import { mountMarket } from './marketview.js';
@@ -34,6 +35,7 @@ import { credits, number } from './partinfo.js';
 import { playBurn, playLander } from './pilotgames.js';
 import { INK, UI_FONT, condensed, halftone, inkFill, keyLine, paperFill, withAlpha } from './riso.js';
 import { ROLES, canActAs, colorHex, roleHolder, roleName } from './shared.js';
+import { canvasDpr, getSettings, onSettings, reducedEffects } from './settings.js';
 import { sounds } from './sound.js';
 import { FAULT_STATION, JOBS, PERKS, PREP, SPARE_STATION, getTask, isTaskDone, missingTasks, stageTasks, taskProgress } from './tasks.js';
 import { ROLE_INK, drawItem, drawRock, drawStation, label, paintMap } from './worldart.js';
@@ -204,7 +206,9 @@ export const mountWorld = (container) => {
     const result = task.kind === 'burnSim'
       ? await whileBusy(() => playBurn({ title: 'Simulador: transferencia a la Luna', how: task.how, target: 3_130, sim: true }))
       : await whileBusy(() => playMinigame(task.kind, { title: task.title, how: task.how, game: task.game }));
-    if (result.ok) sendAction(task.send ?? { type: 'task:done', id: task.id });
+    // `quality`: la precisión que midió el minijuego (0 a 1); el servidor la usa para el puntaje.
+    const quality = Number.isFinite(result.quality) ? result.quality : Number.isFinite(result.aim) ? result.aim : undefined;
+    if (result.ok) sendAction({ ...(task.send ?? { type: 'task:done', id: task.id }), quality });
   };
 
   const pilotBurn = async (g) => {
@@ -270,7 +274,7 @@ export const mountWorld = (container) => {
           { blocked: BUILD_STAGES.includes(stageId) ? null : 'El cohete se arma en las etapas Construcción y Validación.' });
         break;
       case 'board':
-        add(stageId === 'debrief' ? 'Ver la evaluación de la misión' : 'Ver el tablero de misión', () => openPanel(stageId === 'debrief' ? ['flight', 'board'] : ['board']));
+        add(stageId === 'debrief' ? 'Ver la evaluación de la misión' : 'Ver el tablero de misión', () => openPanel(stageId === 'debrief' ? ['score', 'flight', 'board'] : ['board']));
         break;
       case 'lever': {
         if (stageId === 'debrief') {
@@ -306,7 +310,7 @@ export const mountWorld = (container) => {
         else {
           add('Tomar los mandos: reentrada', async () => {
             const result = await whileBusy(() => playMinigame('dial', { title: 'Reentrada', how: 'Mantén el ángulo de entrada en la zona verde: muy empinado quema la cápsula, muy plano la hace rebotar.', game: { speed: 1.2, arc: 0.32 } }));
-            if (result.ok) sendAction({ type: 'flight:proceed' });
+            if (result.ok) sendAction({ type: 'flight:proceed', quality: result.quality });
           }, { blocked: reason });
         }
         break;
@@ -319,7 +323,7 @@ export const mountWorld = (container) => {
         const reason = flight.phase !== 'ready' ? 'Primero hay que resolver la emergencia.' : flight.prep?.[kind] ? 'Eso ya está listo para el próximo encendido.' : null;
         add(prep.verb, async () => {
           const result = await whileBusy(() => playMinigame(prep.kind, { title: prep.title, how: prep.how }));
-          if (result.ok) sendAction({ type: 'flight:prep', kind });
+          if (result.ok) sendAction({ type: 'flight:prep', kind, quality: result.quality });
         }, { blocked: reason });
         break;
       }
@@ -370,7 +374,7 @@ export const mountWorld = (container) => {
             if (g.may('engineer') && !voted('repair', 'engineer')) {
               add(`Reparar: ${emergency.title.toLowerCase()}`, async () => {
                 const result = await whileBusy(() => playMinigame('wires', { title: `Reparar: ${emergency.title}`, how: 'Vuelve a conectar cada cable con su enchufe.', game: { count: 5 } }));
-                if (result.ok) sendAction({ type: 'flight:resolve', option: 'repair', role: 'engineer' });
+                if (result.ok) sendAction({ type: 'flight:resolve', option: 'repair', role: 'engineer', quality: result.quality });
               }, { blocked: voted('repair', 'merchant') ? null : 'Falta el repuesto: Comercio lo trae y lo entrega aquí.' });
             }
           }
@@ -522,6 +526,7 @@ export const mountWorld = (container) => {
   const TOOLS = {
     market: { name: 'Mercado', mount: mountMarket },
     builder: { name: 'Constructor', mount: mountBuilder },
+    score: { name: 'Resultados', mount: mountScore },
     flight: { name: 'Informe del vuelo', mount: (box) => mountFlight(box, { readOnly: true }) },
     board: { name: 'Tablero de misión', mount: mountBoard },
   };
@@ -560,7 +565,7 @@ export const mountWorld = (container) => {
     panel.hidden = false;
     showTool(names[0]);
   };
-  const blocking = () => busy || !panel.hidden || Boolean(document.querySelector('.minigame, .cine-shot, .role-reveal, .tut-library'));
+  const blocking = () => busy || !panel.hidden || Boolean(document.querySelector('.minigame, .cine-shot, .role-reveal, .tut-library, .settings-screen, .credits-screen'));
 
   // ============================================================
   //  Tripulantes
@@ -624,13 +629,14 @@ export const mountWorld = (container) => {
     paintMap(g, map);
   };
   const resize = () => {
-    view.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    view.dpr = canvasDpr(2);
     view.w = Math.max(1, canvas.clientWidth);
     view.h = Math.max(1, canvas.clientHeight);
     canvas.width = Math.round(view.w * view.dpr);
     canvas.height = Math.round(view.h * view.dpr);
     // Se ven unas 1000 × 620 unidades de mundo, como en el lobby.
-    view.scale = Math.min(1.9, Math.max(0.5, Math.max(view.w / 1260, view.h / 770)));
+    // El acercamiento de Opciones multiplica la escala (más grande = se ve menos mundo).
+    view.scale = Math.min(1.9, Math.max(0.5, Math.max(view.w / 1260, view.h / 770))) * getSettings().cameraZoom;
     paintBackground();
   };
   const cameraTarget = (me) => {
@@ -649,7 +655,7 @@ export const mountWorld = (container) => {
   // ============================================================
   const speedNow = (g) => {
     const carried = g?.mine;
-    return WORLD_SPEED * (session.room.settings.playerSpeed ?? 1) * (carried?.item === 'prism' ? PRISM_SPEED : carried ? CARRY_SPEED : 1);
+    return WORLD_SPEED * (session.room.settings.playerSpeed ?? 1) * getSettings().walkSpeed * (carried?.item === 'prism' ? PRISM_SPEED : carried ? CARRY_SPEED : 1);
   };
 
   const updateMe = (dt, g) => {
@@ -772,13 +778,36 @@ export const mountWorld = (container) => {
   // ============================================================
   //  HUD (DOM encima del lienzo)
   // ============================================================
+  // El panel de tareas se pliega con su botón; el estado se recuerda en esta pestaña (sessionStorage).
+  const OBJECTIVES_KEY = 'adastra.objectivesCollapsed';
+  let objectivesCollapsed = (() => {
+    try { return sessionStorage.getItem(OBJECTIVES_KEY) === '1'; } catch { return false; }
+  })();
+  const setObjectivesCollapsed = (collapsed) => {
+    objectivesCollapsed = collapsed;
+    try { sessionStorage.setItem(OBJECTIVES_KEY, collapsed ? '1' : '0'); } catch { /* sin almacenamiento */ }
+    const g = game();
+    if (g) renderObjectives(g);
+  };
+
   const renderObjectives = (g) => {
     const box = $('.world-objectives');
     const { own, free, shared } = myObjectives(g);
     const myRole = g.me?.role;
+    const pending = own.filter((entry) => !entry.done);
+    const alerts = [...own, ...free].filter((entry) => entry.alert && !entry.done);
+    // Encabezado: etapa, resumen (se ve también plegado) y el botón de plegar.
     const head = el('header');
-    head.title = 'Clic para plegar o desplegar la lista';
-    head.append(el('span', 'kicker', `Etapa ${g.data.stageIndex + 1} de ${g.mission.stages.length} · clic para plegar`), el('strong', '', g.stage.name));
+    const titles = el('div', 'objectives-titles');
+    titles.append(el('span', 'kicker', `Etapa ${g.data.stageIndex + 1} de ${g.mission.stages.length}`), el('strong', '', g.stage.name));
+    const summary = el('p', `objectives-summary${alerts.length ? ' alert' : ''}`,
+      alerts.length ? `! ${alerts[0].text}` : pending.length ? `${pending.length} ${pending.length === 1 ? 'tarea pendiente' : 'tareas pendientes'}: ${pending[0].text}` : '✓ Tus tareas de esta etapa están hechas');
+    const toggle = el('button', 'objectives-toggle', objectivesCollapsed ? '▸' : '▾');
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', String(!objectivesCollapsed));
+    toggle.setAttribute('aria-label', objectivesCollapsed ? 'Mostrar las tareas' : 'Plegar las tareas');
+    toggle.title = objectivesCollapsed ? 'Mostrar las tareas' : 'Plegar las tareas';
+    head.append(titles, toggle, summary);
     const line = (entry) => {
       const item = el('li', `${entry.done ? 'done' : ''}${entry.alert ? ' alert' : ''}${entry.step ? ' step' : ''}${entry.tag === 'opcional' ? ' extra' : ''}`);
       item.append(el('i', '', entry.done ? '✓' : entry.alert ? '!' : '○'), el('span', '', entry.text));
@@ -794,13 +823,18 @@ export const mountWorld = (container) => {
       return [el('h3', extra ? 'extra' : '', title), list];
     };
     const role = ROLES.find((r) => r.id === myRole);
-    box.replaceChildren(
-      head,
+    // El cuerpo se abre y se cierra con una transición de altura (grid de 0fr a 1fr, ver css).
+    const body = el('div', 'objectives-body');
+    const inner = el('div', 'objectives-inner');
+    inner.append(
       ...block(role ? `Tu rol: ${role.name}` : 'Tu tarea', own),
       ...(own.length === 0 ? [el('p', 'empty', 'Por ahora no tienes tareas: ayuda a tu equipo.')] : []),
       ...block('Puestos libres (los cubre cualquiera)', free),
       ...block('Puedes ayudar', shared.filter((entry) => !entry.done), true),
     );
+    body.append(inner);
+    box.classList.toggle('collapsed', objectivesCollapsed);
+    box.replaceChildren(head, body);
     box.style.setProperty('--role-ink', ROLE_INK[myRole] ?? INK.gold);
   };
 
@@ -967,7 +1001,7 @@ export const mountWorld = (container) => {
     ctx.fill();
     ctx.restore();
     const frame = actor.moving ? Math.floor(actor.walkTime * WALK_FPS) % FRAME_COUNT : IDLE_FRAME;
-    drawAstronaut(ctx, { x: actor.x, y: actor.y, color: player.color, hat: player.hat, facing: actor.facing, frame, scale: SPRITE_SCALE, alpha: player.connected === false ? 0.45 : 1 });
+    drawAstronaut(ctx, { x: actor.x, y: actor.y, color: player.color, hat: player.hat, role: player.role, facing: actor.facing, frame, scale: SPRITE_SCALE, alpha: player.connected === false ? 0.45 : 1 });
     const held = g.data.carrying?.[actor.id];
     if (held) drawItem(ctx, held.item, actor.x + actor.facing * 22, actor.y - 40 + (actor.moving ? Math.sin(actor.walkTime * 12) * 2 : 0), time);
   };
@@ -1129,7 +1163,7 @@ export const mountWorld = (container) => {
     ctx.fillStyle = INK.space;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     if (!g) return;
-    const shake = mapId === 'ship' && burning() ? 3 : 0;
+    const shake = mapId === 'ship' && burning() && getSettings().cameraShake && !reducedEffects() ? 3 : 0;
     const ox = (Math.random() - 0.5) * shake, oy = (Math.random() - 0.5) * shake;
     const scale = view.dpr * view.scale;
     ctx.setTransform(scale, 0, 0, scale, view.dpr * (view.w / 2 - (view.x + ox) * view.scale), view.dpr * (view.h / 2 - (view.y + oy) * view.scale));
@@ -1187,7 +1221,7 @@ export const mountWorld = (container) => {
       const me = actors.get(session.myId);
       if (me) {
         const target = cameraTarget(me);
-        const ease = 1 - Math.exp(-dt * 8);
+        const ease = 1 - Math.exp(-dt * getSettings().cameraFollow);
         view.x += (target.x - view.x) * ease;
         view.y += (target.y - view.y) * ease;
       }
@@ -1217,7 +1251,7 @@ export const mountWorld = (container) => {
     // Al llegar a la Evaluación, el informe del vuelo se abre solo una vez.
     if (g.stageId === 'debrief' && !seenResult) {
       seenResult = true;
-      window.setTimeout(() => { if (game()?.stageId === 'debrief' && panel.hidden) openPanel(['flight', 'board']); }, lastStage === null ? 300 : 3_000);
+      window.setTimeout(() => { if (game()?.stageId === 'debrief' && panel.hidden) openPanel(['score', 'flight', 'board']); }, lastStage === null ? 300 : 3_000);
     }
     // Si la herramienta abierta ya no corresponde a la etapa, se cierra.
     if (openTools.includes('market') && !MARKET_STAGES.includes(g.stageId)) closePanel();
@@ -1301,7 +1335,9 @@ export const mountWorld = (container) => {
   $('.world-log .chat-close').addEventListener('click', () => toggleSide('log', false));
   $('.world-panel-close').addEventListener('click', closePanel);
   $('.world-objectives').addEventListener('click', (event) => {
-    if (/** @type {HTMLElement} */ (event.target).closest('header')) $('.world-objectives').classList.toggle('collapsed');
+    const target = /** @type {HTMLElement} */ (event.target);
+    // El botón pliega o despliega; plegado, un clic en cualquier parte del encabezado lo abre.
+    if (target.closest('.objectives-toggle') || (objectivesCollapsed && target.closest('header'))) setObjectivesCollapsed(!objectivesCollapsed);
   });
   promptButton.addEventListener('pointerdown', (event) => {
     event.preventDefault();
@@ -1328,6 +1364,7 @@ export const mountWorld = (container) => {
   ];
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(canvas);
+  offs.push(onSettings(resize)); // acercamiento y resolución
   resize();
   enterMap(mapId, false);
   lastStage = game()?.stageId ?? null;

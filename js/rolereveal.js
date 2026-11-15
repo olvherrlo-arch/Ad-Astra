@@ -10,6 +10,7 @@ import { characterReady, drawAstronaut } from './character.js';
 import { session } from './connection.js';
 import { ROLES } from './shared.js';
 import { sounds } from './sound.js';
+import { reducedMotion } from './settings.js';
 
 /** Cómo se ve cada rol en la revelación (ícono y tinta de fondo). */
 const LOOK = {
@@ -24,7 +25,8 @@ const CLOSE_MS = 12_000; //  si nadie toca nada, se cierra sola
 
 const roleOf = (id) => ROLES.find((role) => role.id === id);
 
-const portrait = (player, size = 1) => {
+/** Retrato del astronauta. Con `suited`, ya vestido con el equipo de su rol (js/character.js). */
+const portrait = (player, size = 1, suited = false) => {
   const canvas = document.createElement('canvas');
   const dpr = window.devicePixelRatio || 1;
   const w = 110 * size, h = 150 * size;
@@ -34,7 +36,8 @@ const portrait = (player, size = 1) => {
   canvas.style.height = `${h}px`;
   const ctx = canvas.getContext('2d');
   ctx.scale(dpr, dpr);
-  drawAstronaut(ctx, { x: w / 2 - 6, y: h - 6, color: player.color, hat: player.hat, scale: 0.78 * size });
+  drawAstronaut(ctx, { x: w / 2 - 6, y: h - 6, color: player.color, hat: player.hat, role: suited ? player.role : null, scale: 0.78 * size });
+  canvas.className = suited ? 'reveal-portrait suited' : 'reveal-portrait plain';
   return canvas;
 };
 
@@ -45,7 +48,7 @@ export const showRoleReveal = async () => {
   await characterReady;
   document.querySelector('.role-reveal')?.remove();
 
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = reducedMotion();
   const crew = room.players.filter((p) => p.connected !== false);
   const mine = roleOf(me.role);
   const look = LOOK[me.role];
@@ -72,6 +75,7 @@ export const showRoleReveal = async () => {
     <button type="button" class="reveal-go">¡A trabajar!</button>
     <p class="reveal-skip">Clic para seguir</p>`;
   box.querySelector('.reveal-name').textContent = mine.name;
+  box.querySelector('.reveal-card').prepend(portrait(me, 0.9, true));
   box.querySelector('.reveal-duty').textContent = mine.duty;
   // Con menos de 4, se avisa qué roles quedaron libres (los maneja cualquiera).
   const free = ROLES.filter((role) => !crew.some((p) => p.role === role.id));
@@ -93,7 +97,8 @@ export const showRoleReveal = async () => {
     flip.innerHTML = `<span class="back">?</span><span class="front">${role ? `${LOOK[role.id].icon} ${role.name}` : 'Libre'}</span>`;
     const name = document.createElement('figcaption');
     name.textContent = player.id === me.id ? `${player.name} (tú)` : player.name;
-    seat.append(flip, portrait(player), name);
+    // Primero el astronauta de siempre; al darse vuelta su carta, ya con el equipo de su rol.
+    seat.append(flip, portrait(player), portrait(player, 1, true), name);
     lineup.append(seat);
   }
   document.body.append(box);

@@ -18,6 +18,7 @@
  */
 import { frameLoop } from './frame.js';
 import { INK, UI_FONT, DISPLAY_FONT, condensed, halftone, starPath, withAlpha } from './riso.js';
+import { canvasDpr, reducedEffects } from './settings.js';
 import { sounds } from './sound.js';
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -88,7 +89,7 @@ export const runGame = ({ title, how = '', keysHint = '', width = 640, height = 
 
     const canvas = /** @type {HTMLCanvasElement} */ (root.querySelector('canvas'));
     const ctx = canvas.getContext('2d');
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = canvasDpr(2);
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     canvas.style.aspectRatio = `${width} / ${height}`;
@@ -192,6 +193,7 @@ const dialGame = (api, { speed = 1, arc = 0.36, seconds = 3.2 } = {}) => {
   const cx = W / 2, cy = 232, R = 150;
   let needle = -1.25, velocity = 0, progress = 0;
   let t = Math.random() * 20;
+  let inTime = 0, total = 0; // precisión: fracción del tiempo con la aguja en la zona
   const targetAt = (time) => 0.8 * Math.sin(time * 0.85 * speed) + 0.36 * Math.sin(time * 2.2 * speed + 1);
   const point = (angle, radius) => [cx + Math.sin(angle) * radius, cy - Math.cos(angle) * radius];
   return {
@@ -208,8 +210,10 @@ const dialGame = (api, { speed = 1, arc = 0.36, seconds = 3.2 } = {}) => {
       }
       needle = clamp(needle, -1.5, 1.5);
       const inside = Math.abs(needle - targetAt(t)) < arc / 2;
+      total += dt;
+      if (inside) inTime += dt;
       progress = clamp(progress + (inside ? dt / seconds : -dt / 6), 0, 1);
-      if (progress >= 1) api.win();
+      if (progress >= 1) api.win({ quality: total > 0 ? inTime / total : 1 });
     },
     draw() {
       paper(ctx, W, H);
@@ -287,7 +291,8 @@ const tuneGame = (api) => {
         mine.a = clamp(Math.abs(mid - pointer.y) / reach, 0.12, 1);
       }
       hold = locked() ? hold + dt : 0;
-      if (hold >= 1) api.win();
+      // Precisión: fijar la señal rápido (hasta 5 s es perfecto; a los 25 s, la mitad).
+      if (hold >= 1) api.win({ quality: clamp(1 - Math.max(0, t - 6) / 40, 0.3, 1) });
     },
     draw() {
       paper(ctx, W, H);
@@ -327,6 +332,7 @@ const wiresGame = (api, { count = 4 } = {}) => {
   const LX = 96, RX = W - 96;
   const joined = new Set();
   let held = null; // id del cable que se está llevando
+  let misses = 0; // precisión: conexiones equivocadas
   let spark = 0;
   const nearest = (list, x, px, py) => list.findIndex((_id, i) => Math.hypot(px - x, py - yAt(i)) < 34);
   const tryPlug = (px, py) => {
@@ -336,8 +342,9 @@ const wiresGame = (api, { count = 4 } = {}) => {
       joined.add(held);
       sounds.pick?.();
       held = null;
-      if (joined.size === count) api.win();
+      if (joined.size === count) api.win({ quality: count / (count + misses) });
     } else {
+      misses++;
       spark = 0.35;
       sounds.bad?.();
       held = null;
@@ -356,7 +363,7 @@ const wiresGame = (api, { count = 4 } = {}) => {
       }
     },
     draw() {
-      paper(ctx, W, H, spark > 0 ? '#ffd9d3' : INK.paper);
+      paper(ctx, W, H, spark > 0 && !reducedEffects() ? '#ffd9d3' : INK.paper);
       ctx.fillStyle = withAlpha(INK.navy, 0.08);
       ctx.fillRect(40, 24, 112, H - 48);
       ctx.fillRect(W - 152, 24, 112, H - 48);
@@ -402,6 +409,7 @@ const timingGame = (api, { hitsNeeded = 3 } = {}) => {
   const X0 = 60, X1 = W - 60, Y = 170;
   const widths = [0.22, 0.17, 0.13, 0.11];
   let p = 0.05, direction = 1, speed = 0.62, hits = 0, zone = 0.55, cooldown = 0, flash = 0;
+  let misses = 0; // precisión: golpes fuera de la zona
   const strike = () => {
     if (cooldown > 0) return;
     const w = widths[Math.min(hits, widths.length - 1)];
@@ -409,10 +417,11 @@ const timingGame = (api, { hitsNeeded = 3 } = {}) => {
       hits++;
       flash = 0.25;
       sounds.pick?.();
-      if (hits >= hitsNeeded) return api.win();
+      if (hits >= hitsNeeded) return api.win({ quality: hitsNeeded / (hitsNeeded + misses) });
       speed *= 1.22;
       zone = 0.08 + Math.random() * (0.84 - widths[Math.min(hits, widths.length - 1)]);
     } else {
+      misses++;
       cooldown = 0.45;
       sounds.bad?.();
     }
@@ -465,6 +474,7 @@ const switchesGame = (api, { labels = [], count = 5 } = {}) => {
   const layout = shuffle(labels);
   const on = new Set();
   let wrong = { index: -1, time: 0 };
+  let misses = 0; // precisión: toques equivocados
   const cols = 4, cellW = 104, cellH = 132, gridX = 214, gridY = 44;
   const cell = (i) => ({ x: gridX + (i % cols) * cellW, y: gridY + Math.floor(i / cols) * cellH });
   const flip = (index) => {
@@ -472,8 +482,9 @@ const switchesGame = (api, { labels = [], count = 5 } = {}) => {
     if (layout[index] === steps[on.size]) {
       on.add(layout[index]);
       sounds.pick?.();
-      if (on.size === steps.length) api.win();
+      if (on.size === steps.length) api.win({ quality: steps.length / (steps.length + misses) });
     } else {
+      misses++;
       wrong = { index, time: 0.4 };
       sounds.bad?.();
     }
@@ -539,6 +550,7 @@ const orderGame = (api, { items = [] } = {}) => {
   const cards = shuffle(items.map((_item, i) => i));
   let next = 0;
   let wrong = { index: -1, time: 0 };
+  let misses = 0; // precisión: toques equivocados
   const cols = 2, rows = Math.ceil(items.length / cols);
   const cellW = (W - 60) / cols, cellH = (H - 70) / rows;
   const cell = (i) => ({ x: 30 + (i % cols) * cellW, y: 20 + Math.floor(i / cols) * cellH });
@@ -547,8 +559,9 @@ const orderGame = (api, { items = [] } = {}) => {
     if (cards[slot] === next) {
       next++;
       sounds.pick?.();
-      if (next === items.length) api.win();
+      if (next === items.length) api.win({ quality: items.length / (items.length + misses) });
     } else {
+      misses++;
       wrong = { index: slot, time: 0.4 };
       sounds.bad?.();
     }

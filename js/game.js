@@ -20,6 +20,7 @@ import { mountNarrative } from './narrative.js';
 import { PROLOGUE } from './story.js';
 import { openTutorialLibrary } from './tutorial.js';
 import { playCinematic } from './cinematic.js';
+import { openSettings } from './settings.js';
 
 const TOAST_MS = 3_500;
 
@@ -33,6 +34,7 @@ const GAME_HTML = `
     <p class="mission-title"><span></span><strong></strong></p>
     <span class="game-room">Sala <strong></strong></span>
     <button class="game-help" type="button">Tutoriales</button>
+    <button class="game-help game-options" type="button">Opciones</button>
     <button class="game-end" hidden>Volver al lobby</button>
   </header>
   <div class="mission-scene"></div>
@@ -93,7 +95,8 @@ export const mountGame = (container) => {
   };
 
   endButton.addEventListener('click', endGame);
-  $('.game-help').addEventListener('click', openTutorialLibrary);
+  $('.game-help:not(.game-options)').addEventListener('click', openTutorialLibrary);
+  $('.game-options').addEventListener('click', () => openSettings());
 
   render();
   const offs = [on('state', render), on('room', render), on('rejected', showToast)];

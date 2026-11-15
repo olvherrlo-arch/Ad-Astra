@@ -6,7 +6,7 @@ El equipo habla español: textos del juego, comentarios y respuestas en español
 ## Correr y probar
 - `npm run dev`: servidor + página en http://localhost:3000 (node --watch).
 - `npm test`: 101 pruebas de física, catálogo y cohete (tests/physics.js), 56 del mercado (tests/market.js),
-  58 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 63 del vuelo
+  58 del armado y el despegue (tests/build.js, una partida "de escritorio" sin red), 76 del vuelo y el puntaje
   (tests/flight.js, vuela partidas con semillas fijas) y las de jugadores simulados (tests/simulate.js).
   tests/helpers.js tiene ayudas comunes (hacer tareas del mundo sin red).
   Todas deben terminar en "TODO OK ✅".
@@ -103,6 +103,28 @@ Cada rol hace cosas con las manos, la cooperación es necesaria y nadie espera s
   reentrada, Evaluación, volver al lobby) y con 2 a 4 personas reales (verse caminar, cargar, pilotear;
   afinar el alunizaje con gente). Con el panel del navegador oculto el mundo se congela (sin rAF): hace falta
   la ventana a la vista.
+
+## Pulido final (FINAL POLISH del usuario, vigente)
+- Opciones: `js/settings.js` (localStorage `adastra.settings`, `getSettings/setSettings/onSettings`,
+  `reducedMotion()`, `reducedEffects()`, `canvasDpr()`; `openSettings()` desde menú, ⚙ del lobby y barra de la
+  partida). Cada opción está conectada: volúmenes (js/sound.js: canales master/música/efectos + música
+  ambiental generada que arranca con la primera interacción), `walkSpeed` (lobby y mundo), `cameraFollow` y
+  `cameraZoom` (mundo), `cameraShake`, `quality` (dpr de los lienzos), `textSize` (font-size de :root),
+  `reduceMotion`/`reduceEffects` (html[data-motion|data-effects] en css sección 12). No agregar opciones que
+  no hagan nada.
+- Créditos: `js/credits.js` (`CREDITS` con los 5 nombres EXACTOS que pidió el usuario; no cambiarlos).
+- Trajes por rol: `js/character.js` `drawAstronaut({ role })` + `ROLE_GEAR` (equipo dibujado encima del
+  sprite del usuario, que no se toca). Sale de `player.role`: en el lobby no hay. Mundo, revelación de roles
+  (retrato `plain` → `suited` al darse vuelta la carta) y resultados lo usan.
+- Panel de tareas: botón `.objectives-toggle`, cuerpo `.objectives-body` con transición de grid 0fr/1fr,
+  plegado muestra `.objectives-summary` (alerta o primera tarea pendiente); sessionStorage `adastra.objectivesCollapsed`.
+- Historia: el botón de los no anfitriones dice SIGUIENTE (manda `story:read`; luego "✓ Esperando al equipo").
+  Tarjeta de título al empezar, puntos de avance, viñeta y barrido del título.
+- Puntaje: `server/score.js` (`scoreAction(antes, después, acción, actor, players)` envuelve `applyAction` en
+  server/game.js; `data.score` = players/seen/crew/final; claves en `seen` evitan contar dos veces; precisión
+  con `action.quality` 0..1 que mandan los minijuegos de js/minigames.js, `aim`/Δv de más en encendidos,
+  `touchdown`, lecturas del escáner; bonos finales por rol; `final` con resumen, logros y errores).
+  Pantalla `js/scoreview.js` (pestaña "Resultados", primera en la Evaluación). Pruebas en tests/flight.js §6.
 
 ## Actualización de experiencia (UPDATE MASTER PROMPT del usuario: tutoriales, cinemáticas, constructor animado, UI)
 Orden pedido: 1 UI más simple → 2 tutoriales → 3 cinemáticas → 4 constructor animado → 5 pulido.

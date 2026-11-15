@@ -32,6 +32,15 @@ No ejecutes con ▶ los archivos de `js/`: corren en el navegador, no en Node.
 Cambios en `css/`, `js/`, `assets/` o `index.html`: solo recarga la página.
 Cambios en `server/` o en `js/shared.js` con `npm start`: detén el servidor (Ctrl+C) y vuelve a arrancarlo.
 
+## Opciones y créditos
+
+- **Options** (menú principal, ⚙ del lobby u **Opciones** en la partida): volumen general, música y efectos
+  por separado, silenciar todo; velocidad al caminar, velocidad y acercamiento de la cámara, temblor de la nave;
+  pantalla completa, resolución de los dibujos y tamaño del texto; reducir movimiento y reducir efectos de
+  pantalla. Cada opción muestra su valor, hay **Restaurar valores** y **Volver**. Se guardan en este
+  navegador y solo cambian tu juego.
+- **Credits:** los créditos del equipo como al final de un videojuego.
+
 ## El lobby (la sala de embarque)
 
 La sala está dibujada como un afiche impreso en risografía, con las tintas del juego (azul, coral, dorado y
@@ -44,7 +53,7 @@ turquesa). Afuera del ventanal espera la nave, acoplada a la estación.
 - **Tablero de salidas:** muestra la puerta (el código de sala), la tripulación y el estado
   (*Esperando*, *Listos*, y en la cuenta regresiva *Despega 5, 4, 3…*).
 - **Chat:** botón de arriba a la derecha o <kbd>Enter</kbd>. Tiene chat rápido y un punto cuando hay mensajes nuevos.
-- **Ajustes (⚙):** volumen, controles y "Abandonar sala".
+- **Ajustes (⚙):** volumen, **Todas las opciones…**, controles, tutoriales y "Abandonar sala".
 - **Tarjeta de embarque (abajo):** puerta (el ojo oculta el código, también en el tablero), tripulación
   (en rojo hasta llegar a 4), Pública/Privada y **Despegar**.
 
@@ -69,7 +78,7 @@ Si el anfitrión se va, el rol pasa a quien lleva más tiempo en la sala.
 - **Prólogo:** la primera vez que una sala despega, la tripulación ve junta la historia como una cinemática
   (6 escenas): la ilustración entra con un fundido y una cámara lenta, y el texto se escribe solo (un clic o
   Espacio lo muestra entero). El anfitrión pasa con **Siguiente** (o las flechas ← →), puede volver con
-  **Anterior** o **Saltar** la historia para todos; los demás avisan **Ya leí**.
+  **Anterior** o **Saltar** la historia para todos; los demás presionan **Siguiente** cuando terminan de leer.
 - **Tomas de cine:** al empezar la misión, al despegar, al llegar a la Luna, al volver y al terminar aparece una
   toma corta a pantalla completa. Se cierra sola o con un clic.
 - **Constelación:** las tres misiones son tres estrellas. Toca una para ver su ficha (objetivo, duración,
@@ -105,13 +114,25 @@ Si el anfitrión se va, el rol pasa a quien lleva más tiempo en la sala.
 - **Emergencias:** un motor, la antena, las patas o el espectrómetro pueden fallar; las piezas del mercado
   negro con defectos ocultos fallan más. Se resuelven con las manos: buscar el repuesto en el pañol, llevarlo y
   repararlo (Comercio paga), o aceptar otra salida que piden ciertos roles.
-- **Evaluación (etapa 9):** el resultado, los números del vuelo y lo que se aprende de las decisiones.
-  Volver con el Prisma completa la misión y desbloquea Life on Mars.
+- **Evaluación (etapa 9):** se abre la pantalla de **Resultados**: el resultado del equipo (puntos, objetivos
+  cumplidos, lo mejor y las complicaciones) y una tarjeta por tripulante con su puntaje, sus acciones, su
+  precisión en estrellas (solo si hubo algo medible), su aporte por área, sus mejores aportes y sus logros.
+  Le siguen el informe del vuelo y el tablero. Volver con el Prisma completa la misión y desbloquea Life on Mars.
+- **Puntaje:** lo calcula el servidor con lo que de verdad pasa en el juego: tareas terminadas, cajas
+  entregadas, el armado y las compras (al despegar), cada encendido, el alunizaje, ubicar el Prisma,
+  perforar, reparar, llevar repuestos… La precisión sale de datos medibles (tiempo con la aguja en la zona,
+  errores en un minijuego, puntería y Δv de más en un encendido, cómo tocó el suelo, cuántas lecturas hicieron
+  falta). Cada suceso cuenta una sola vez, todos ven el mismo puntaje y no se pierde al reconectarse. Los
+  valores están pensados para que los cuatro roles tengan las mismas oportunidades (`server/score.js`).
 - **Tutoriales:** la primera vez que llegas a algo nuevo (la sala, el mercado, el constructor, el vuelo…)
   aparece un panel corto que resalta la parte de la pantalla que explica. Algunos pasos te piden hacer la
   acción (elegir rol, abrir una ficha, poner una pieza, encender los motores) y esperan a que la hagas. Cada
   rol ve lo suyo. Se pueden saltar, y repetir desde el botón **Tutoriales** (en la partida, arriba; en el lobby,
   en Ajustes ⚙).
+- **Trajes por rol:** en el lobby todos son el astronauta de siempre. Al repartirse los roles, cada uno se viste
+  con el equipo de su rol: Ciencia (antena con sensor y visor turquesa), Comercio (bolso de carga dorado),
+  Ingeniería (cinturón de herramientas y franja coral) y Vuelo (auriculares y franjas azules), con un parche
+  en el pecho. Lo ven todos y vuelve igual al reconectarse.
 - **Reconexión:** si recargas la página o se corta la red en plena misión, vuelves a tu lugar con tu rol.
   Mientras tanto, otro tripulante puede cubrirlo. Si cerraste la pestaña, entra otra vez con el código.
 
@@ -125,7 +146,8 @@ Solo el **mercado** y el **constructor** son pantallas de menú.
 - **Tres lugares:** la **estación** (Laboratorio, Sala de misión, Simulador, Almacén y Hangar; cada sala es de
   un rol), la **nave** en vuelo (Motores, Bodega, Ciencia y Cabina) y el **lado oculto de la Luna**.
 - **Tareas (arriba a la izquierda):** las tuyas, los puestos libres de roles sin dueño (opcionales) y en qué
-  puedes ayudar. Clic en el título la pliega. En pantallas angostas solo quedan tus tareas pendientes.
+  puedes ayudar. El botón ▾ la pliega: plegada muestra solo la tarea pendiente (o la alerta) más importante.
+  Se recuerda mientras dure la pestaña. En pantallas angostas solo quedan tus tareas pendientes.
   **Tripulación (derecha):** qué hace cada rol y cuántas tareas le faltan.
 - **Tipos de tarea:** minijuegos (afinar una señal, mantener una aguja en verde, soltar a tiempo, unir cables,
   ordenar maniobras, interruptores) y **cargar** objetos de un puesto a otro (cajas, muestras, el Prisma).
@@ -177,7 +199,10 @@ ad-astra/
 │   ├── customize.js    Ventana de Personalizar: color, sombrero y reglas
 │   ├── chat.js         Chat (con moderación para el anfitrión)
 │   ├── character.js    Dibuja al astronauta, su color y sombreros
-│   ├── sound.js        Efectos de sonido
+│   ├── sound.js        Efectos de sonido y música ambiental (generados, sin archivos)
+│   ├── settings.js     Opciones de cada jugador (audio, juego, pantalla, accesibilidad)
+│   ├── credits.js      Pantalla de créditos
+│   ├── scoreview.js    Pantalla de resultados de la misión
 │   ├── game.js         La partida: marco y cambio de pantalla según la escena
 │   ├── narrative.js    Historia página por página (prólogo e informes)
 │   ├── constellation.js  Selector de misiones
@@ -213,8 +238,9 @@ ad-astra/
 │   ├── economy.js      Presupuesto, compras y bodega
 │   ├── build.js        Armado del cohete
 │   ├── world.js        Tareas hechas y objetos que se cargan
+│   ├── score.js        Puntaje individual y resumen final
 │   └── flight.js       El vuelo: encendidos, energía, escaneo, perforación y emergencias
-├── tests/simulate.js   Prueba con jugadores simulados
+├── tests/              physics, market, build, flight (con el puntaje) y simulate (jugadores simulados)
 └── render.yaml         Cómo se publica en Render (link fijo)
 ```
 
@@ -259,7 +285,10 @@ ad-astra/
 | Frases del chat rápido                           | `js/chat.js` → `QUICK_CHAT`                          |
 | Sonidos                                          | `js/sound.js`                                        |
 | Colores, fuentes o tamaños de la interfaz        | `css/styles.css` (sección 1)                         |
-| Nombres del equipo en créditos                   | `js/menu.js` → `CREDITS`                             |
+| Nombres del equipo en créditos                   | `js/credits.js` → `CREDITS`                          |
+| Opciones del jugador                             | `js/settings.js` → `DEFAULT_SETTINGS` y `SECTIONS`   |
+| Cuánto vale cada cosa en el puntaje              | `server/score.js` → `POINTS`                         |
+| Equipo de cada rol en el traje                   | `js/character.js` → `ROLE_GEAR`                      |
 
 ## Cómo funciona el juego
 
