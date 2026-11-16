@@ -26,9 +26,10 @@
 import { installedUids, toPhysicsStages } from './assembly.js';
 import { getMission, missionFor } from './missions.js';
 import { validateRocket } from './rocket.js';
+import { ARKS, fleetBuildable } from './fleet.js';
 import { ROLES } from './shared.js';
 
-export const MINIGAMES = ['tune', 'dial', 'wires', 'timing', 'switches', 'order', 'burnSim'];
+export const MINIGAMES = ['tune', 'dial', 'wires', 'timing', 'switches', 'order', 'burnSim', 'landing'];
 
 /** Ventajas que dejan las tareas de la estación para el vuelo. */
 export const PERKS = {
@@ -288,6 +289,82 @@ TASKS.push(
     title: 'Transmitir la noticia a la Tierra', verb: 'Transmitir a la Tierra', how: 'Envía cada paquete cuando la marca pase por la ventana verde.', result: 'avisó a la Tierra: Marte está despertando' }),
 );
 
+// ---------- Misión 3 (Proyecto NOAH: cuatro arcas) ----------
+// Mapas `yard` (astillero), `bridge` (puente de la flota) y `colony` (js/worldmaps.js).
+// Una tarea con `ark` es de esa arca: si el arca se perdió en el viaje, ya no cuenta (`skip`).
+const exo = (stage, id, role, rest) => ({ id: `exodus.${stage}.${id}`, mission: 'exodus', stage, role, ...rest });
+const arkLost = (arkId) => (data) => Boolean(data.fleet?.journey?.arks?.[arkId]?.lost);
+const FLEET_PLAN = ['Repartir los recursos', 'Construir las cuatro arcas', 'Lanzarlas una tras otra', 'Viajar en formación', 'Aterrizar en Marte', 'Fundar la colonia'];
+const ENGINE_JOBS = { john: 'wires', ringo: 'dial', george: 'timing', paul: 'wires' };
+const OWN_CARGO = {
+  john: { item: 'instrument', what: 'los equipos técnicos' }, ringo: { item: 'container', what: 'las medicinas' },
+  george: { item: 'sample', what: 'las semillas' }, paul: { item: 'chip', what: 'los archivos de la humanidad' },
+};
+TASKS.push(
+  // ---------- Proyecto NOAH: conocer el astillero ----------
+  exo('briefing', 'seeds', 'scientist', { kind: 'tune', at: 'biolab', title: 'Revisar el banco de semillas', verb: 'Revisar el banco de semillas', how: 'Iguala tu señal con la del banco: así se sabe que las semillas siguen vivas.', result: 'comprobó que el banco de semillas está vivo' }),
+  exo('briefing', 'inventory', 'merchant', { kind: 'carry', from: 'depot', to: 'allot', count: 1, item: 'chip', title: 'Llevar el inventario del Proyecto NOAH a la mesa de recursos', verb: 'Tomar el inventario', dropVerb: 'Cargar el inventario en la mesa', result: 'cargó el inventario: ya se sabe con qué se cuenta' }),
+  exo('briefing', 'power', 'engineer', { kind: 'wires', at: 'power', title: 'Dar energía al astillero', verb: 'Abrir el tablero eléctrico', how: 'Une cada cable con el enchufe de su mismo color y símbolo.', result: 'dio energía a las cuatro gradas' }),
+  exo('briefing', 'plan', 'pilot', { kind: 'order', at: 'navdesk', game: { items: FLEET_PLAN }, title: 'Ordenar el plan de la flota', verb: 'Trazar el plan', how: 'Toca los pasos en el orden en que van a pasar.', result: 'trazó el plan de la flota' }),
+
+  // ---------- Reparto: decidir ----------
+  exo('planning', 'samples', 'scientist', { kind: 'carry', from: 'biolab', to: 'depot', count: 2, item: 'sample', title: 'Preparar 2 lotes de muestras biológicas para embarcar', verb: 'Tomar un lote de muestras', dropVerb: 'Dejar el lote en el depósito', result: 'dejó listas las muestras biológicas' }),
+  exo('planning', 'allot', 'merchant', { kind: 'menu', at: 'allot', tool: 'fleet', title: 'Repartir los recursos: ninguna arca puede quedar vacía', verb: 'Abrir la mesa de recursos', auto: (data) => Boolean(data.fleet) && fleetBuildable(data.fleet) }),
+  exo('planning', 'crane', 'engineer', { kind: 'dial', at: 'crane', title: 'Calibrar la grúa del astillero', verb: 'Calibrar la grúa', how: 'Mantén la aguja dentro de la zona verde hasta llenar la barra.', result: 'calibró la grúa del astillero' }),
+  exo('planning', 'route', 'pilot', { kind: 'menu', at: 'allot', tool: 'fleet', title: 'Elegir la ruta de la flota (mesa de recursos)', verb: 'Abrir la mesa de recursos', auto: (data) => Boolean(data.fleet?.routeDecided) }),
+
+  // ---------- Construcción: cuatro tareas por arca ----------
+  ...ARKS.flatMap((ark) => [
+    exo('build', `${ark.id}.materials`, 'merchant', { ark: ark.id, kind: 'carry', from: 'depot', to: `${ark.id}.cargo`, count: 2, item: 'crate', shared: true,
+      title: `${ark.name}: llevar 2 cajas de materiales`, verb: `Levantar materiales para ${ark.name}`, dropVerb: `Entregar los materiales de ${ark.name}`, result: `entregó los materiales de ${ark.name}` }),
+    exo('build', `${ark.id}.engines`, 'engineer', { ark: ark.id, kind: ENGINE_JOBS[ark.id], at: `${ark.id}.bay`, needs: [`exodus.build.${ark.id}.materials`],
+      title: `${ark.name}: instalar la propulsión`, verb: `Instalar la propulsión de ${ark.name}`, how: 'Hazlo con cuidado: de esto depende que el arca despegue.', result: `instaló la propulsión de ${ark.name}` }),
+    exo('build', `${ark.id}.cargo`, 'scientist', { ark: ark.id, kind: 'carry', from: 'biolab', to: `${ark.id}.cargo`, count: 1, item: OWN_CARGO[ark.id].item,
+      title: `${ark.name}: cargar ${OWN_CARGO[ark.id].what}`, verb: `Tomar ${OWN_CARGO[ark.id].what}`, dropVerb: `Cargar en ${ark.name}`, result: `cargó ${OWN_CARGO[ark.id].what} en ${ark.name}` }),
+    exo('build', `${ark.id}.nav`, 'pilot', { ark: ark.id, kind: 'switches', at: `${ark.id}.console`, game: { labels: ['Guiado', 'Radio', 'Giróscopos', 'Rastreador', 'Reloj', 'Enlace de flota'], count: 4 },
+      title: `${ark.name}: configurar la navegación`, verb: `Configurar la navegación de ${ark.name}`, how: 'Sigue la lista: activa cada interruptor en el orden que se pide.', result: `dejó lista la navegación de ${ark.name}` }),
+  ]),
+
+  // ---------- Lanzamientos ----------
+  exo('launch', 'seal', 'scientist', { kind: 'tune', at: 'biolab', title: 'Sellar la carga viva antes del despegue', verb: 'Sellar la carga viva', how: 'Iguala la presión de las cámaras con la de las arcas.', result: 'selló la carga viva' }),
+  exo('launch', 'manifest', 'merchant', { kind: 'carry', from: 'allot', to: 'depot', count: 1, item: 'chip', title: 'Cerrar el manifiesto de la flota', verb: 'Tomar el manifiesto', dropVerb: 'Archivar el manifiesto', result: 'cerró el manifiesto: todo lo que viaja está anotado' }),
+  ...ARKS.flatMap((ark) => [
+    exo('launch', `${ark.id}.fuel`, 'engineer', { ark: ark.id, kind: 'dial', at: `${ark.id}.bay`, title: `${ark.name}: cargar combustible`, verb: `Cargar combustible en ${ark.name}`, how: 'Mantén la presión en la zona verde hasta llenar los tanques.', result: `llenó los tanques de ${ark.name}` }),
+    exo('launch', `${ark.id}.go`, 'pilot', { ark: ark.id, kind: 'timing', at: `${ark.id}.console`, needs: [`exodus.launch.${ark.id}.fuel`], title: `${ark.name}: dar la orden de despegue`, verb: `Lanzar a ${ark.name}`, how: 'Da la orden cuando la marca pase por la ventana de lanzamiento. Tres aciertos.', result: `lanzó a ${ark.name}, ${ark.title}` }),
+  ]),
+
+  // ---------- Viaje de la flota (puente) ----------
+  exo('fleet', 'course', 'pilot', { kind: 'burnSim', at: 'helm', title: 'Corregir el rumbo de la flota', verb: 'Corregir el rumbo', how: 'Mantén la nariz sobre la marca y corta el motor justo al llegar al Δv pedido.', result: 'corrigió el rumbo de las cuatro arcas' }),
+  exo('fleet', 'formation', 'pilot', { kind: 'timing', at: 'formation', title: 'Mantener la formación', verb: 'Ajustar la formación', how: 'Ajusta cada arca cuando pase por su lugar. Tres aciertos.', result: 'mantuvo a la flota en formación' }),
+  exo('fleet', 'garden', 'scientist', { kind: 'tune', at: 'bio', title: 'Vigilar los ecosistemas de George', verb: 'Vigilar los ecosistemas', how: 'Iguala la luz y la humedad con las que piden las plantas.', result: 'mantuvo vivos los ecosistemas de George' }),
+  exo('fleet', 'stores', 'merchant', { kind: 'carry', from: 'loose', to: 'stores', count: 3, item: 'crate', shared: true, title: 'Repartir 3 cajas de víveres entre las arcas', verb: 'Levantar una caja de víveres', dropVerb: 'Enviar la caja por la esclusa', result: 'repartió los víveres entre las arcas' }),
+  exo('fleet', 'repair', 'engineer', { kind: 'wires', at: 'engine', title: 'Reparar la avería de la nave insignia', verb: 'Reparar la avería', how: 'Vuelve a conectar cada cable con su enchufe.', result: 'reparó la avería en pleno viaje' }),
+  exo('fleet', 'power', 'engineer', { kind: 'dial', at: 'breaker', title: 'Repartir la energía de la flota', verb: 'Repartir la energía', how: 'Mantén la aguja en la zona verde: ni de más ni de menos.', result: 'repartió la energía entre las arcas' }),
+
+  // ---------- Llegada ----------
+  exo('arrival', 'sites', 'scientist', { kind: 'tune', at: 'bio', title: 'Elegir los sitios de aterrizaje junto al verde nuevo', verb: 'Elegir los sitios', how: 'Iguala tu señal con la del suelo fértil.', result: 'eligió dónde baja cada arca' }),
+  exo('arrival', 'secure', 'merchant', { kind: 'carry', from: 'loose', to: 'stores', count: 2, item: 'crate', shared: true, title: 'Asegurar 2 cajas sueltas para la entrada', verb: 'Levantar una caja suelta', dropVerb: 'Asegurar la caja', result: 'aseguró la carga para la entrada' }),
+  exo('arrival', 'legs', 'engineer', { kind: 'timing', at: 'engine', title: 'Desplegar las patas de las arcas', verb: 'Desplegar las patas', how: 'Suelta cada traba cuando la marca pase por la zona verde.', result: 'desplegó las patas de las arcas' }),
+  exo('arrival', 'entry', 'pilot', { kind: 'dial', at: 'formation', title: 'Guiar la entrada de la flota en la atmósfera', verb: 'Guiar la entrada', how: 'Mantén el ángulo de entrada en la zona verde.', result: 'guió la entrada de la flota' }),
+  exo('arrival', 'landing', 'pilot', { kind: 'landing', at: 'helm', needs: ['exodus.arrival.entry'], title: 'Aterrizar a mano la primera arca', verb: 'Tomar los mandos: aterrizar', how: 'Pósate despacio y derecho. Las demás siguen tu huella.', result: 'posó la primera arca: las demás bajaron detrás' }),
+
+  // ---------- La colonia: cada arca aporta lo suyo ----------
+  exo('colony', 'john.tower', 'engineer', { ark: 'john', skip: arkLost('john'), kind: 'wires', at: 'tower', title: 'John: levantar la torre de energía y comunicaciones', verb: 'Conectar la torre', how: 'Une cada cable con su enchufe.', result: 'levantó la torre: la colonia tiene energía' }),
+  exo('colony', 'john.beacon', 'pilot', { ark: 'john', skip: arkLost('john'), kind: 'timing', at: 'tower', needs: ['exodus.colony.john.tower'], title: 'John: encender el faro de navegación', verb: 'Encender el faro', how: 'Sincroniza el faro con los satélites. Tres aciertos.', result: 'encendió el faro de navegación' }),
+  exo('colony', 'ringo.supplies', 'merchant', { ark: 'ringo', skip: arkLost('ringo'), kind: 'carry', from: 'ringo.ark', to: 'habitat', count: 3, item: 'crate', shared: true, title: 'Ringo: llevar 3 cajas de víveres y medicinas al hábitat', verb: 'Bajar una caja de Ringo', dropVerb: 'Guardar la caja en el hábitat', result: 'abasteció el hábitat' }),
+  exo('colony', 'ringo.water', 'engineer', { ark: 'ringo', skip: arkLost('ringo'), kind: 'dial', at: 'habitat', title: 'Ringo: poner en marcha el agua', verb: 'Abrir el agua', how: 'Mantén la presión en la zona verde.', result: 'puso en marcha el agua del hábitat' }),
+  exo('colony', 'george.seeds', 'scientist', { ark: 'george', skip: arkLost('george'), kind: 'carry', from: 'george.ark', to: 'garden', count: 3, item: 'sample', title: 'George: plantar 3 lotes de semillas', verb: 'Tomar un lote de semillas', dropVerb: 'Plantar las semillas', result: 'plantó los primeros cultivos' }),
+  exo('colony', 'george.balance', 'scientist', { ark: 'george', skip: arkLost('george'), kind: 'tune', at: 'garden', needs: ['exodus.colony.george.seeds'], title: 'George: equilibrar el ecosistema del invernadero', verb: 'Equilibrar el ecosistema', how: 'Iguala luz y humedad con lo que piden las plantas.', result: 'equilibró el ecosistema' }),
+  exo('colony', 'paul.archive', 'merchant', { ark: 'paul', skip: arkLost('paul'), kind: 'carry', from: 'paul.ark', to: 'school', count: 2, item: 'chip', shared: true, title: 'Paul: llevar 2 archivos de la humanidad a la escuela', verb: 'Tomar un archivo', dropVerb: 'Guardar el archivo en la escuela', result: 'guardó la historia de la humanidad en la escuela' }),
+  exo('colony', 'paul.families', 'pilot', { ark: 'paul', skip: arkLost('paul'), kind: 'order', at: 'school', game: { items: ['Abrir la escotilla', 'Niños y mayores primero', 'Las familias', 'La tripulación', 'Cerrar el arca'] }, title: 'Paul: recibir a las familias', verb: 'Recibir a las familias', how: 'Toca los pasos en el orden en que bajan.', result: 'recibió a las primeras familias' }),
+
+  // ---------- El Prisma ----------
+  exo('finale', 'prism', 'scientist', { kind: 'carry', from: 'board', to: 'lever', count: 1, item: 'prism', title: 'Llevar el Prisma al monumento', verb: 'Tomar el Prisma', dropVerb: 'Colocar el Prisma en el monumento', result: 'colocó el Prisma en el monumento' }),
+  exo('finale', 'offering', 'merchant', { kind: 'carry', from: 'habitat', to: 'lever', count: 1, item: 'container', shared: true, title: 'Llevar al monumento un puñado de tierra de la Tierra', verb: 'Tomar la tierra de la Tierra', dropVerb: 'Dejarla junto al Prisma', result: 'dejó tierra de la Tierra junto al Prisma' }),
+  exo('finale', 'pedestal', 'engineer', { kind: 'switches', at: 'tower', game: { labels: ['Energía', 'Anclajes', 'Luces', 'Sensores', 'Enlace'], count: 4 }, title: 'Dar energía al monumento desde la torre', verb: 'Dar energía al monumento', how: 'Sigue la lista: activa cada sistema en orden.', result: 'dio energía al monumento' }),
+  exo('finale', 'message', 'pilot', { kind: 'timing', at: 'school', title: 'Transmitir a quienes siguen en la Tierra', verb: 'Transmitir a la Tierra', how: 'Envía cada paquete cuando la marca pase por la ventana verde.', result: 'transmitió a la Tierra: hay un lugar para todos' }),
+);
+
 // ---------- Sandbox: nada es obligatorio salvo tener algo armado que pase la revisión ----------
 TASKS.push(
   {
@@ -308,7 +385,7 @@ export const getTask = (id) => BY_ID.get(id);
 export const stageTasks = (stageId, missionId = 'moon') => TASKS.filter((task) => task.stage === stageId && (task.mission ?? 'moon') === (missionId ?? 'moon'));
 
 /** ¿Está hecha esta tarea? Las `auto` se miran en el estado; las demás, en `data.tasks`. */
-export const isTaskDone = (data, task) => (task.auto ? Boolean(task.auto(data)) : Boolean(data.tasks?.[task.id]?.done));
+export const isTaskDone = (data, task) => Boolean(task.skip?.(data)) || (task.auto ? Boolean(task.auto(data)) : Boolean(data.tasks?.[task.id]?.done));
 
 /** Cuántos objetos lleva entregados una tarea de cargar. */
 export const taskProgress = (data, task) => data.tasks?.[task.id]?.progress ?? 0;

@@ -14,13 +14,15 @@ const SHOW_MS = 2_600;
  * El rayo de la leyenda: primero ROJO, enseguida un destello AZUL, y una onda que se abre.
  * Solo se muestra cuando el servidor ya dijo que el experimento se sincronizó (`flight.activated`).
  * Con "reducir movimiento" no hay parpadeos: dos fundidos suaves. Al terminar llama a `then`.
+ * `variant` 'finale' = el cierre de la campaña: sin rayo, solo la luz del Prisma y la onda.
  * @param {() => void} [then]
+ * @param {string} [variant]
  */
-export const playLightning = (then = () => {}) => {
+export const playLightning = (then = () => {}, variant = '') => {
   document.querySelector('.lightning-shot')?.remove();
   const reduced = reducedMotion();
   const shot = document.createElement('div');
-  shot.className = `lightning-shot${reduced ? ' calm' : ''}`;
+  shot.className = `lightning-shot${reduced ? ' calm' : ''}${variant ? ` ${variant}` : ''}`;
   shot.setAttribute('role', 'status');
   shot.setAttribute('aria-label', 'Un rayo rojo cae sobre el Prisma, seguido de un destello azul');
   shot.innerHTML = `

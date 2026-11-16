@@ -225,8 +225,8 @@ const run = async () => {
     afterPrologue.data.scene === 'select' && afterPrologue.data.campaign.prologueSeen === true);
   check('por ahora las tres misiones están desbloqueadas',
     ['moon', 'mars', 'exodus'].every((id) => afterPrologue.data.campaign.missions[id] === 'available'));
-  const unbuilt = await act(host, { type: 'mission:start', missionId: 'exodus' });
-  check(`una misión sin construir todavía no se puede iniciar ("${unbuilt.error}")`, Boolean(unbuilt.error) && room().state.data.scene === 'select');
+  const noSuch = await act(host, { type: 'mission:start', missionId: 'venus' });
+  check(`una misión que no existe no se puede iniciar ("${noSuch.error}")`, Boolean(noSuch.error) && room().state.data.scene === 'select');
   check('un invitado no puede iniciar la misión', Boolean((await act(p2, { type: 'mission:start', missionId: 'moon' })).error));
   const briefing = await act(host, { type: 'mission:start', missionId: 'moon' });
   check('el anfitrión inicia Dark Side of the Moon: empieza el informe y la misión queda "en curso"',

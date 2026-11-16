@@ -114,6 +114,10 @@ export const mountScore = (box) => {
       facts.append(el('span', '', final.sandbox ? 'Sandbox: créditos ilimitados, física de verdad' : 'Ciencia: no viajó ningún instrumento científico'));
     }
     const planLine = el('p', 'score-plan', [final.plan ? `${SITES[final.plan.site]?.name ?? ''} · ${ORBITS[final.plan.orbit]?.name ?? ''}` : '', `Dificultad: ${final.difficulty ?? 'Normal'}`].filter(Boolean).join(' · '));
+    if (final.fleet) {
+      facts.replaceChildren(el('span', '', `Flota: ${final.fleet.arrived} de 4 arcas · colonia al ${final.fleet.colony} %`), bar(final.fleet.colony / 100, '#f3b641'));
+      planLine.textContent = `Proyecto NOAH · ${final.fleet.route === 'fast' ? 'ruta corta' : 'ruta larga'} · Dificultad: ${final.difficulty ?? 'Normal'}`;
+    }
     if (final.missionId === 'mars') planLine.textContent = `Viaje a Marte · Dificultad: ${final.difficulty ?? 'Normal'}`;
     if (final.sandbox) planLine.textContent = `Vuelo de prueba: ${PROFILES[final.plan?.profile ?? 'orbit']?.name ?? ''}`;
     if (final.place) planLine.textContent += ` · Puesto ${final.place} en la tabla de récords`;
@@ -211,12 +215,12 @@ export const mountScore = (box) => {
     const note = el('p', 'score-note', 'Cada rol suma por lo suyo y con su propia precisión: los puntajes no compiten entre sí, muestran cómo aportó cada quien.');
     // Volver a intentar: mismo cohete, misma bodega y el dinero que quedó. Lo decide el anfitrión.
     const retry = el('div', 'score-retry');
-    const retryText = el('p', '', final.sandbox ? 'Vuelve al hangar cuando quieras: cambia piezas, elige otro viaje y despega de nuevo.' : final.ok
+    const retryText = el('p', '', final.fleet ? 'Se puede volver al astillero: las arcas construidas siguen ahí. Repartan de otra forma, elijan otra ruta y lancen de nuevo.' : final.sandbox ? 'Vuelve al hangar cuando quieras: cambia piezas, elige otro viaje y despega de nuevo.' : final.ok
       ? '¿Se puede hacer mejor? Vuelvan al hangar, cambien el diseño y vuelen otra vez: cuenta el último vuelo.'
       : 'Vuelvan al hangar con lo aprendido: cambien el diseño, revísenlo y despeguen otra vez. El combustible quemado no se devuelve.');
     retry.append(retryText);
     if (isHost()) {
-      const button = /** @type {HTMLButtonElement} */ (el('button', 'score-retry-button', final.sandbox ? 'Volver al hangar' : 'Rediseñar y volver a volar'));
+      const button = /** @type {HTMLButtonElement} */ (el('button', 'score-retry-button', final.fleet ? 'Volver al astillero' : final.sandbox ? 'Volver al hangar' : 'Rediseñar y volver a volar'));
       button.type = 'button';
       button.addEventListener('click', () => sendAction({ type: 'mission:retry' }));
       retry.append(button);

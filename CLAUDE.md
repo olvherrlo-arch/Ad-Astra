@@ -254,5 +254,19 @@ Universe, 4 arcas John/Ringo/George/Paul: no renombrar) → 5 integración. No e
   outcrop; el aparato dibuja solo lo que ya se hizo), js/cinematic.js `playLightning` (rojo → azul → onda; nunca
   antes de `activated`), ilustraciones mars/storm/bloom en js/art.js, informe en BRIEFINGS.mars. Pruebas:
   tests/mars.js (38: 4 jugadores, 1 jugador, fallo y reintento, balance 20/20 con cuidado).
-  tests/simulate.js usa `exodus` como "misión sin construir": cambiarlo al construir la misión 3.
+  tests/simulate.js ya no prueba una "misión sin construir" (las tres existen): prueba una misión que no existe.
+- Hito 4 HECHO: MISIÓN 3 "Across the Universe" (Proyecto NOAH). NO usa cohete ni server/flight.js: `mission.fleet`
+  y `data.fleet` (js/fleet.js: `ARKS` John/Ringo/George/Paul con `needs`, `FLEET_POOL` 28, `allot`, `ROUTES`
+  safe|fast, `resolveJourney(fleet, seed)` determinista, `MIN_ARKS` 3, `colonyLevel`). Etapas: briefing, planning,
+  build, launch, fleet, arrival, colony, finale, debrief; todas avanzan con la palanca (`stage:advance`) cuando están
+  las tareas. Acciones `fleet:allot {ark, system, delta}` (Comercio, en planning/build) y `fleet:route` (Vuelo, hasta
+  launch). Al cerrar `build`: ninguna arca vacía; al cerrar `fleet`: se resuelve el viaje (menos de 3 arcas = falla y
+  salta a debrief); al cerrar `finale`: `fleet.result` ok y campaña completada. `mission:retry` vuelve a `planning`
+  con las arcas construidas. Mapas por etapa (`mapIdFor`): `yard` (astillero), `bridge` (puente), `colony` (Marte
+  ya verde; `map.bloom`). Tareas `exodus.<etapa>.*`; las de un arca perdida se saltan (`task.skip`). Minijuego nuevo
+  `landing` (playLander). Puntaje: `finalizeFleet` en server/score.js (`final.fleet`). Cliente: js/fleetview.js
+  (mesa de recursos, pestaña "Las cuatro arcas"), pintores ark/colonysite/monument/fleetmap en js/worldart.js (dibujan
+  solo lo ya hecho), `resultOf(data)` en js/world.js, `playLightning(then, 'finale')`. Pruebas: tests/exodus.js (48).
+- Falta (hito 5 y más): cambio de personaje en solitario (4 personajes en el mundo), tutoriales de Marte/arcas/Sandbox,
+  probar con 2 a 4 navegadores y en teléfono, jugar a mano los minijuegos nuevos, dónde va `starman.png`.
 

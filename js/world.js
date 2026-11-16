@@ -27,6 +27,7 @@ import { endGame, isHost, leaveRoom, on, sendAction, sendMove, session } from '.
 import { mountFlight } from './flightview.js';
 import { mountPlan } from './planview.js';
 import { mountTestFlight } from './sandboxview.js';
+import { mountFleet } from './fleetview.js';
 import { PROFILES, planOf } from './missionplan.js';
 import { mountScore } from './scoreview.js';
 import { frameLoop } from './frame.js';
@@ -57,18 +58,27 @@ const HOLD_MS = 1_000; // cuánto hay que mantener E en las acciones que no se d
 const BOARDING_REACH = 300; // qué tan cerca de la plataforma (o del módulo) cuenta como "a bordo"
 const ITEM_NAMES = { chip: 'la ficha de presupuesto', sample: 'la muestra', crate: 'una caja', instrument: 'los instrumentos', container: 'el contenedor', prism: 'el Prisma', spare: 'el repuesto' };
 
+/** El resultado de la misión: del vuelo (Luna, Marte, Sandbox) o de la flota (las arcas). */
+const resultOf = (data) => data.flight?.result ?? data.fleet?.result ?? null;
+
 /** Tomas de cine al cambiar de etapa (js/cinematic.js). Solo se muestran; no cambian nada del juego. */
 const STAGE_SHOTS = {
+  launch: () => ({ art: 'rocket', camera: 'up', kicker: 'Proyecto NOAH', title: 'Cuatro despegues', text: 'John, Ringo, George y Paul. Una tras otra, en la misma ventana.' }),
+  fleet: () => ({ art: 'mars', camera: 'right', kicker: 'Etapa Viaje', title: 'La flota en camino', text: 'Cuatro arcas, un solo rumbo. Que ninguna se quede atrás.' }),
+  colony: () => ({ art: 'bloom', camera: 'out', kicker: 'Etapa Colonia', title: 'Suelo nuevo', text: 'Cada arca trae una parte de lo que somos. Hora de ponerla en pie.', tone: 'good' }),
+  finale: () => ({ art: 'bolt', camera: 'in', kicker: 'La leyenda de Aztlán', title: 'El Prisma', text: 'Marte nos dio un lugar. Queda devolverle lo que lo despertó.' }),
   flight: (data) => ({ art: 'rocket', camera: 'up', kicker: 'Etapa Vuelo', title: '¡Despegue!', text: data.missionId === 'sandbox' ? 'A ver cómo vuela tu diseño.' : data.missionId === 'mars' ? 'Todos a sus puestos. Ocho meses y medio hasta Marte.' : 'Todos a sus puestos. Rumbo a la Luna.' }),
-  arrival: () => ({ art: 'mars', camera: 'in', kicker: 'Etapa Llegada', title: 'Marte a la vista', text: 'Frenar, atravesar su aire fino y aterrizar.' }),
+  arrival: (data) => (data.missionId === 'exodus'
+    ? { art: 'bloom', camera: 'in', kicker: 'Etapa Llegada', title: 'El Marte que cambió', text: 'Donde cayó el rayo, ahora hay verde. Hay que bajar las arcas.' }
+    : { art: 'mars', camera: 'in', kicker: 'Etapa Llegada', title: 'Marte a la vista', text: 'Frenar, atravesar su aire fino y aterrizar.' }),
   surface: (data) => (data.missionId === 'mars'
     ? { art: 'mars', camera: 'out', kicker: 'Etapa Superficie', title: 'Suelo marciano', text: 'Hay que armar el experimento antes de que llegue la tormenta.' }
     : { art: 'moon', camera: 'in', kicker: 'Etapa Superficie', title: 'El lado oculto', text: 'Hora de bajar y encontrar el Prisma.' }),
   storm: () => ({ art: 'storm', camera: 'left', kicker: 'Etapa Tormenta', title: 'Llega la tormenta', text: 'Sostengan el experimento. El rayo está cerca.', tone: 'bad' }),
   return: () => ({ art: 'earth', camera: 'out', kicker: 'Etapa Regreso', title: 'Rumbo a casa', text: 'Queda volver con la nave entera.' }),
-  debrief: (data) => (data.flight?.result?.ok
-    ? { art: data.missionId === 'sandbox' ? 'earth' : data.missionId === 'mars' ? 'bloom' : 'bolt', camera: 'in', kicker: 'Resultado', title: data.missionId === 'sandbox' ? 'Prueba superada' : 'Misión cumplida', text: data.missionId === 'moon' ? 'El Prisma está en la Tierra. La leyenda era cierta.' : data.flight.result.text, tone: 'good' }
-    : { art: data.missionId === 'mars' ? 'mars' : 'moon', camera: 'out', kicker: 'Resultado', title: 'Misión fallida', text: data.flight?.result?.text ?? 'La nave no pudo completar el viaje.', tone: 'bad' }),
+  debrief: (data) => (resultOf(data)?.ok
+    ? { art: data.missionId === 'sandbox' ? 'earth' : data.missionId === 'moon' ? 'bolt' : 'bloom', camera: data.missionId === 'exodus' ? 'out' : 'in', kicker: data.missionId === 'exodus' ? 'Fin de la campaña' : 'Resultado', title: data.missionId === 'sandbox' ? 'Prueba superada' : data.missionId === 'exodus' ? 'Un nuevo hogar' : 'Misión cumplida', text: data.missionId === 'moon' ? 'El Prisma está en la Tierra. La leyenda era cierta.' : resultOf(data).text, tone: 'good' }
+    : { art: data.missionId === 'mars' ? 'mars' : data.missionId === 'exodus' ? 'earth' : 'moon', camera: 'out', kicker: 'Resultado', title: 'Misión fallida', text: resultOf(data)?.text ?? 'La nave no pudo completar el viaje.', tone: 'bad' }),
 };
 
 const WORLD_HTML = `
@@ -211,9 +221,25 @@ export const mountWorld = (container) => {
   // ============================================================
   //  Qué se puede hacer en cada puesto
   // ============================================================
+  /** Un aviso corto arriba (el mismo cartel que usan los rechazos del servidor). */
+  const showToastLine = (text) => {
+    const toast = document.querySelector('.mission-toast');
+    if (!toast) return;
+    toast.textContent = text;
+    /** @type {HTMLElement} */ (toast).hidden = false;
+    window.setTimeout(() => { /** @type {HTMLElement} */ (toast).hidden = true; }, 3_500);
+  };
+
   const runTask = async (task) => {
+    if (task.kind === 'landing') {
+      // Aterrizar a mano: si se estrella, no cuenta y se vuelve a intentar.
+      const landed = await whileBusy(() => playLander({ title: task.title, budget: 700, gravity: 8.5, how: task.how }));
+      if (landed.dv && landed.touchdown !== 'crash') sendAction({ type: 'task:done', id: task.id, quality: landed.touchdown === 'soft' ? 1 : 0.5 });
+      else if (landed.dv) showToastLine('El arca tocó demasiado fuerte. Inténtalo otra vez: las demás esperan tu huella.');
+      return;
+    }
     const result = task.kind === 'burnSim'
-      ? await whileBusy(() => playBurn(task.mission === 'mars' ? { title: 'Simulador: inyección hacia Marte', how: task.how, target: 3_610, sim: true } : { title: 'Simulador: transferencia a la Luna', how: task.how, target: 3_130, sim: true }))
+      ? await whileBusy(() => playBurn(task.mission === 'exodus' ? { title: 'Corrección de rumbo de la flota', how: task.how, target: 60, sim: true } : task.mission === 'mars' ? { title: 'Simulador: inyección hacia Marte', how: task.how, target: 3_610, sim: true } : { title: 'Simulador: transferencia a la Luna', how: task.how, target: 3_130, sim: true }))
       : await whileBusy(() => playMinigame(task.kind, { title: task.title, how: task.how, game: task.game }));
     // `quality`: la precisión que midió el minijuego (0 a 1); el servidor la usa para el puntaje.
     const quality = Number.isFinite(result.quality) ? result.quality : Number.isFinite(result.aim) ? result.aim : undefined;
@@ -277,6 +303,10 @@ export const mountWorld = (container) => {
     }
 
     switch (station.id) {
+      // ---------- Misión 3: la mesa de recursos ----------
+      case 'allot':
+        add('Abrir la mesa de recursos', () => openPanel(['fleet', 'board']));
+        break;
       // ---------- Estación ----------
       case 'terminal':
         add('Abrir el mercado', () => openPanel(['market']), { blocked: MARKET_STAGES.includes(stageId) ? null : 'El mercado abre en la etapa Mercado y cierra al despegar.' });
@@ -286,6 +316,10 @@ export const mountWorld = (container) => {
           { blocked: BUILD_STAGES.includes(stageId) ? null : 'El cohete se arma en las etapas Construcción y Validación.' });
         break;
       case 'board':
+        if (g.mission.fleet) {
+          add(stageId === 'debrief' ? 'Ver el final de la misión' : 'Ver el tablero y las arcas', () => openPanel(stageId === 'debrief' ? ['score', 'fleet', 'board'] : ['board', 'fleet']));
+          break;
+        }
         if (g.mission.sandbox && stageId !== 'debrief') {
           add(flight ? 'Ver el vuelo de prueba' : 'Elegir el vuelo de prueba', () => openPanel(['testflight', 'board']));
           break;
@@ -296,7 +330,7 @@ export const mountWorld = (container) => {
       case 'lever': {
         if (stageId === 'debrief') {
           const hostReason = isHost() ? null : 'Lo decide el anfitrión.';
-          add(g.mission.sandbox ? 'Volver al hangar y probar otra cosa' : 'Rediseñar el cohete y volver a volar', () => { sounds.good(); sendAction({ type: 'mission:retry' }); }, { hold: true, blocked: hostReason });
+          add(g.mission.sandbox ? 'Volver al hangar y probar otra cosa' : g.mission.fleet ? 'Volver al astillero y repartir de nuevo' : 'Rediseñar el cohete y volver a volar', () => { sounds.good(); sendAction({ type: 'mission:retry' }); }, { hold: true, blocked: hostReason });
           if (g.mission.sandbox) add('Salir del Sandbox', () => leaveRoom(), { hold: true });
           else add('Volver a la sala de embarque', () => endGame(), { hold: true, blocked: hostReason });
         } else if (stageId === 'validation') {
@@ -453,7 +487,7 @@ export const mountWorld = (container) => {
       push(null, isHost() ? 'Cuando quieran: palanca para volver a la sala de embarque' : 'El anfitrión los lleva de vuelta con la palanca', 'lever');
       return list;
     }
-    if (mapId === 'station') {
+    if (mapId === 'station' || g.mission.fleet) {
       taskLines();
       // La decisión del plan (lugar y órbita): no frena la etapa, pero conviene tomarla antes de armar.
       if (g.mission.id === 'moon' && ['planning', 'market', 'build'].includes(stageId)) {
@@ -586,6 +620,7 @@ export const mountWorld = (container) => {
     board: { name: 'Tablero de misión', mount: mountBoard },
     plan: { name: 'Plan de la misión', mount: mountPlan },
     testflight: { name: 'Vuelo de prueba', mount: mountTestFlight },
+    fleet: { name: 'Las cuatro arcas', mount: mountFleet },
   };
 
   const showTool = (name) => {
@@ -685,7 +720,7 @@ export const mountWorld = (container) => {
     const g = background.getContext('2d');
     g.setTransform(view.res, 0, 0, view.res, 0, 0);
     paintedBloom = Boolean(session.state?.data?.flight?.activated);
-    paintMap(g, map, { bloom: paintedBloom });
+    paintMap(g, map, { bloom: paintedBloom || Boolean(map.bloom) });
   };
   const resize = () => {
     view.dpr = canvasDpr(2);
@@ -1008,6 +1043,18 @@ export const mountWorld = (container) => {
     // Marte usa los mismos puestos de la estación con sus propias tareas (`mars.` adelante).
     const progress = (id) => { const task = getTask(data.missionId === 'mars' && !id.startsWith('mars.') ? `mars.${id}` : id); return task ? taskProgress(data, task) : 0; };
     const done = (id) => Boolean(getTask(id)) && isTaskDone(data, getTask(id));
+    // Misión 3: las arcas, lo que levanta cada una y el monumento se dibujan según lo que ya se hizo.
+    if (station.kind === 'ark') {
+      const state = data.fleet?.journey?.arks?.[station.ark];
+      const built = ['materials', 'engines', 'cargo', 'nav'].filter((part) => data.tasks?.[`exodus.build.${station.ark}.${part}`]?.done).length;
+      return { progress: station.landed ? 4 : built, launched: !station.landed && Boolean(data.tasks?.[`exodus.launch.${station.ark}.go`]?.done), fueled: Boolean(data.tasks?.[`exodus.launch.${station.ark}.fuel`]?.done), lost: Boolean(state?.lost), integrity: state?.integrity ?? 100 };
+    }
+    if (station.kind === 'colonysite') {
+      const state = data.fleet?.journey?.arks?.[station.ark];
+      const own = stageTasks('colony', 'exodus').filter((task) => task.ark === station.ark);
+      return { lost: Boolean(state?.lost), level: (own.filter((task) => data.tasks?.[task.id]?.done).length / Math.max(1, own.length)) * (state?.level ?? 1) };
+    }
+    if (station.kind === 'monument') return { prism: Boolean(data.tasks?.['exodus.finale.prism']?.done), active: Boolean(data.fleet?.result?.ok) };
     switch (station.id) {
       case 'rig': return { materials: progress('mars.surface.materials'), built: done('mars.surface.rig'), cabled: done('mars.surface.cables'), prism: done('mars.surface.prism'), shields: progress('mars.storm.shields'), active: Boolean(flight?.activated) };
       case 'mast': return { storm: g.leg?.id === 'storm' };
@@ -1339,7 +1386,12 @@ export const mountWorld = (container) => {
     if (!g) return;
     const wantedMap = mapIdFor(g.data);
     if (wantedMap !== mapId) enterMap(wantedMap, true);
-    if (lastStage !== null && lastStage !== g.stageId && STAGE_SHOTS[g.stageId]) playCinematic(STAGE_SHOTS[g.stageId](g.data));
+    if (lastStage !== null && lastStage !== g.stageId && STAGE_SHOTS[g.stageId]) {
+      const shot = STAGE_SHOTS[g.stageId](g.data);
+      // El final de la campaña: el Prisma libera su energía sobre Marte, y después el cierre.
+      if (g.stageId === 'debrief' && g.data.fleet?.result?.ok) { sounds.launch(); playLightning(() => playCinematic(shot), 'finale'); }
+      else playCinematic(shot);
+    }
     // El rayo: rojo, destello azul y la onda. Recién después se ve el Marte que cambió.
     if (Boolean(g.flight?.activated) !== paintedBloom && mapId === 'mars') {
       if (lastStage !== null && g.flight?.activated) {
@@ -1351,7 +1403,7 @@ export const mountWorld = (container) => {
     if (g.stageId !== 'debrief') seenResult = false; // al volver a intentar, el resultado nuevo se abre otra vez
     if (g.stageId === 'debrief' && !seenResult) {
       seenResult = true;
-      window.setTimeout(() => { if (game()?.stageId === 'debrief' && panel.hidden) openPanel(['score', 'flight', 'board']); }, lastStage === null ? 300 : 3_000);
+      window.setTimeout(() => { const now = game(); if (now?.stageId === 'debrief' && panel.hidden) openPanel(now.mission.fleet ? ['score', 'fleet', 'board'] : ['score', 'flight', 'board']); }, lastStage === null ? 300 : 3_000);
     }
     // Si la herramienta abierta ya no corresponde a la etapa, se cierra.
     if (openTools.includes('market') && !MARKET_STAGES.includes(g.stageId)) closePanel();

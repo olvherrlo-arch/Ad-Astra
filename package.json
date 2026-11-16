@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node --watch server/server.js",
     "start": "node server/server.js",
-    "test": "node tests/physics.js && node tests/market.js && node tests/build.js && node tests/flight.js && node tests/sandbox.js && node tests/mars.js && node tests/simulate.js"
+    "test": "node tests/physics.js && node tests/market.js && node tests/build.js && node tests/flight.js && node tests/sandbox.js && node tests/mars.js && node tests/exodus.js && node tests/simulate.js"
   },
   "engines": {
     "node": ">=20"

@@ -165,13 +165,90 @@ const MARS = finish({
   ],
 });
 
-export const MAPS = { station: STATION, ship: SHIP, moon: MOON, mars: MARS };
+// ---------- Misión 3: astillero, puente de la flota y colonia ----------
+const ARK_IDS = ['john', 'ringo', 'george', 'paul'];
+const ARK_LABELS = { john: 'John · El Pionero', ringo: 'Ringo · El Guardián', george: 'George · El Jardín', paul: 'Paul · El Legado' };
+
+/** El astillero del Proyecto NOAH: cuatro gradas, una por arca, y la zona común abajo. */
+const YARD = finish({
+  id: 'yard', name: 'Astillero del Proyecto NOAH', width: 2480, height: 1240, wall: WALL,
+  rooms: [{ id: 'yard', name: 'Astillero NOAH', role: null, x: 40, y: 40, w: 2400, h: 1160 }],
+  doors: [],
+  spawn: { x: 1240, y: 860 },
+  stations: [
+    ...ARK_IDS.flatMap((id, index) => {
+      const x = 110 + index * 590;
+      return [
+        { id: `${id}.bay`, ark: id, room: 'yard', kind: 'ark', label: ARK_LABELS[id], x, y: 470, w: 230, h: 60, height: 300 },
+        { id: `${id}.cargo`, ark: id, room: 'yard', kind: 'crates', label: `Carga de ${ARK_LABELS[id].split(' ')[0]}`, x: x + 290, y: 380, w: 120, h: 42, height: 48 },
+        { id: `${id}.console`, ark: id, room: 'yard', kind: 'console', label: `Navegación de ${ARK_LABELS[id].split(' ')[0]}`, x: x + 290, y: 560, w: 120, h: 32, height: 84 },
+      ];
+    }),
+    { id: 'board', room: 'yard', kind: 'board', label: 'Tablero de misión', x: 1010, y: 720, w: 200, h: 14, height: 86 },
+    { id: 'lever', room: 'yard', kind: 'lever', label: 'Palanca de etapa', x: 1290, y: 722, w: 56, h: 28, height: 70 },
+    { id: 'depot', room: 'yard', kind: 'crates', label: 'Depósito de materiales', x: 260, y: 980, w: 160, h: 46, height: 56 },
+    { id: 'biolab', room: 'yard', kind: 'locker', label: 'Banco de semillas y carga especial', x: 640, y: 960, w: 96, h: 30, height: 100 },
+    { id: 'allot', room: 'yard', kind: 'console', label: 'Mesa de recursos', x: 1170, y: 990, w: 140, h: 34, height: 84 },
+    { id: 'navdesk', room: 'yard', kind: 'table', label: 'Mesa de la flota', x: 1560, y: 1000, w: 150, h: 42, height: 40 },
+    { id: 'power', room: 'yard', kind: 'panel', label: 'Tablero eléctrico', x: 1900, y: 960, w: 90, h: 26, height: 96 },
+    { id: 'crane', room: 'yard', kind: 'crane', label: 'Grúa del astillero', x: 2140, y: 980, w: 110, h: 32, height: 120 },
+  ],
+});
+
+/** El puente de la nave insignia: desde aquí se lleva a las cuatro arcas. */
+const BRIDGE = finish({
+  id: 'bridge', name: 'Puente de la flota', width: 1480, height: 700, wall: WALL,
+  rooms: [{ id: 'bridge', name: 'Puente de la flota', role: null, x: 40, y: 60, w: 1400, h: 580 }],
+  doors: [],
+  spawn: { x: 740, y: 430 },
+  stations: [
+    { id: 'bio', room: 'bridge', kind: 'machine', label: 'Ecosistemas de George', x: 90, y: 134, w: 120, h: 32, height: 92 },
+    { id: 'stores', room: 'bridge', kind: 'rack', label: 'Esclusa de víveres', x: 290, y: 134, w: 130, h: 34, height: 90 },
+    { id: 'breaker', room: 'bridge', kind: 'panel', label: 'Energía de la flota', x: 500, y: 134, w: 90, h: 26, height: 92 },
+    { id: 'board', room: 'bridge', kind: 'board', label: 'Tablero de misión', x: 680, y: 132, w: 200, h: 14, height: 86 },
+    { id: 'lever', room: 'bridge', kind: 'lever', label: 'Palanca de etapa', x: 960, y: 134, w: 56, h: 28, height: 70 },
+    { id: 'helm', room: 'bridge', kind: 'cockpit', label: 'Timón de la flota', x: 1180, y: 134, w: 160, h: 40, height: 84 },
+    { id: 'loose', room: 'bridge', kind: 'crates', label: 'Víveres', x: 110, y: 520, w: 130, h: 44, height: 50 },
+    { id: 'engine', room: 'bridge', kind: 'engine', label: 'Sala de máquinas', x: 400, y: 520, w: 150, h: 50, height: 60 },
+    { id: 'formation', room: 'bridge', kind: 'fleetmap', label: 'Mapa de la flota', x: 700, y: 400, w: 190, h: 60, height: 40 },
+    { id: 'radio', room: 'bridge', kind: 'antenna', label: 'Radio de la flota', x: 1160, y: 520, w: 110, h: 34, height: 80, decor: true },
+  ],
+});
+
+/** La colonia: el Marte que cambió, con las cuatro arcas posadas y lo que cada una levanta. */
+const COLONY = finish({
+  id: 'colony', name: 'La colonia', width: 2000, height: 1100, wall: 0, outdoor: true, bloom: true,
+  rooms: [{ id: 'surface', name: '', role: null, x: 40, y: 150, w: 1920, h: 910, plain: true }],
+  doors: [],
+  spawn: { x: 1000, y: 760 },
+  rocks: [{ x: 60, y: 900, w: 70, h: 30, height: 40 }, { x: 1860, y: 820, w: 80, h: 34, height: 46 }],
+  stations: [
+    ...ARK_IDS.map((id, index) => ({ id: `${id}.ark`, ark: id, landed: true, room: 'surface', kind: 'ark', label: ARK_LABELS[id], x: 140 + index * 470, y: 400, w: 190, h: 54, height: 230 })),
+    { id: 'tower', build: 'tower', ark: 'john', room: 'surface', kind: 'colonysite', label: 'Torre de energía', x: 200, y: 640, w: 110, h: 40, height: 170 },
+    { id: 'habitat', build: 'habitat', ark: 'ringo', room: 'surface', kind: 'colonysite', label: 'Hábitat', x: 640, y: 640, w: 170, h: 46, height: 90 },
+    { id: 'garden', build: 'garden', ark: 'george', room: 'surface', kind: 'colonysite', label: 'Invernadero', x: 1110, y: 640, w: 170, h: 46, height: 80 },
+    { id: 'school', build: 'school', ark: 'paul', room: 'surface', kind: 'colonysite', label: 'Escuela y archivo', x: 1580, y: 640, w: 170, h: 46, height: 100 },
+    { id: 'board', room: 'surface', kind: 'cart', label: 'Bitácora de la colonia', x: 760, y: 900, w: 84, h: 30, height: 40 },
+    { id: 'lever', room: 'surface', kind: 'monument', label: 'Monumento del Prisma', x: 960, y: 880, w: 100, h: 44, height: 110 },
+  ],
+});
+
+export const MAPS = { station: STATION, ship: SHIP, moon: MOON, mars: MARS, yard: YARD, bridge: BRIDGE, colony: COLONY };
+
+/** Misión 3: el mapa depende de la etapa (no hay un vuelo tramo por tramo). */
+const EXODUS_MAPS = { fleet: 'bridge', arrival: 'bridge', colony: 'colony', finale: 'colony' };
 
 /** Tramos que se juegan caminando afuera, y en qué mapa. */
 const SURFACE_MAPS = { surface: 'moon', experiment: 'mars', storm: 'mars', bloom: 'mars' };
 
 /** En qué mapa está la tripulación según cómo va la partida. */
 export const mapIdFor = (data) => {
+  const mission = getMission(data?.missionId);
+  if (mission?.fleet) {
+    const stageId = mission.stages[data.stageIndex]?.id;
+    if (stageId === 'debrief') return data.fleet?.result?.ok ? 'colony' : 'yard';
+    return EXODUS_MAPS[stageId] ?? 'yard';
+  }
   const flight = data?.flight;
   if (!flight || flight.phase === 'over') return 'station';
   const leg = getMission(data.missionId)?.flightPlan?.[flight.legIndex];

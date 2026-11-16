@@ -165,6 +165,29 @@ const MARS_STAGES = [
     tasks: role4('Resume el resultado científico.', 'Resume en qué se gastó.', 'Resume cómo se comportaron las piezas.', 'Resume el vuelo.') },
 ];
 
+/** Misión 3: no hay un cohete que armar pieza por pieza, sino cuatro arcas que construir, lanzar y llevar juntas. */
+/** @type {Stage[]} */
+const EXODUS_STAGES = [
+  { id: 'briefing', name: 'Proyecto NOAH', tools: false, summary: 'La Tierra ya no alcanza. Cuatro arcas llevarán a la humanidad a Marte.',
+    tasks: role4('Revisa el banco de semillas.', 'Lleva el inventario a la mesa de recursos.', 'Da energía al astillero.', 'Ordena el plan de la flota.') },
+  { id: 'planning', name: 'Reparto', tools: false, summary: 'Los recursos no alcanzan para todo: hay que repartirlos entre las cuatro arcas y elegir la ruta.',
+    tasks: role4('Prepara las muestras biológicas.', 'Reparte los recursos entre las arcas.', 'Calibra la grúa del astillero.', 'Elige la ruta de la flota.') },
+  { id: 'build', name: 'Construcción', tools: false, summary: 'Cada arca necesita materiales, propulsión, su carga y su navegación.',
+    tasks: role4('Carga lo propio de cada arca.', 'Lleva los materiales a cada arca.', 'Instala la propulsión de cada arca.', 'Configura la navegación de cada arca.') },
+  { id: 'launch', name: 'Lanzamientos', tools: false, summary: 'Cuatro despegues, uno tras otro, en la misma ventana.',
+    tasks: role4('Sella la carga viva.', 'Cierra el manifiesto de la flota.', 'Carga combustible en cada arca.', 'Da la orden de despegue de cada arca.') },
+  { id: 'fleet', name: 'Viaje de la flota', tools: false, summary: 'Cuatro naves viajando juntas: rumbo, formación, víveres, energía y averías.',
+    tasks: role4('Vigila los ecosistemas de George.', 'Reparte los víveres entre las arcas.', 'Repara la avería y reparte la energía.', 'Corrige el rumbo y mantén la formación.') },
+  { id: 'arrival', name: 'Llegada a Marte', tools: false, summary: 'El Marte que cambió el Prisma. Hay que bajar las arcas, una por una.',
+    tasks: role4('Elige los sitios de aterrizaje.', 'Asegura la carga para la entrada.', 'Despliega las patas de las arcas.', 'Guía la entrada y aterriza la primera.') },
+  { id: 'colony', name: 'La colonia', tools: false, summary: 'Cada arca aporta lo suyo: energía, hábitat, cultivos y escuela.',
+    tasks: role4('Planta las semillas y equilibra el ecosistema.', 'Lleva víveres y archivos.', 'Levanta la torre y pone en marcha el agua.', 'Enciende el faro y recibe a las familias.') },
+  { id: 'finale', name: 'El Prisma', tools: false, summary: 'Queda un último acto: devolverle el Prisma a Marte.',
+    tasks: role4('Lleva el Prisma al monumento.', 'Lleva la ofrenda de la Tierra.', 'Prepara el pedestal.', 'Transmite a quienes siguen en la Tierra.') },
+  { id: 'debrief', name: 'Evaluación', tools: false, summary: 'El final de la campaña.',
+    tasks: role4('', '', '', '') },
+];
+
 /**
  * Las tres misiones de la campaña, en orden. Cada una se desbloquea al completar la anterior.
  * Por ahora solo la primera tiene etapas.
@@ -222,7 +245,10 @@ export const MISSIONS = [
     difficulty: 3,
     equipment: ['Cuatro arcas: John, Ringo, George y Paul', 'Soporte vital', 'Semillas y ecosistemas', 'Sistemas de colonia'],
     star: { x: 82, y: 54 },
-    stages: [],
+    stages: EXODUS_STAGES,
+    fleet: true, //  se juega con js/fleet.js (cuatro arcas), sin armar un cohete pieza por pieza
+    budget: 0,
+    maxTier: 'common',
   },
 ];
 

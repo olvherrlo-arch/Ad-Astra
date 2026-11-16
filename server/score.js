@@ -26,6 +26,7 @@ import { installedUids, toPhysicsStages } from '../js/assembly.js';
 import { getMission, missionFor } from '../js/missions.js';
 import { validateRocket } from '../js/rocket.js';
 import { ROLES, roleName } from '../js/shared.js';
+import { ARKS, colonyLevel, leftOf, shortfalls } from '../js/fleet.js';
 import { getTask, stageTasks } from '../js/tasks.js';
 
 /** Cuánto vale cada cosa. */
@@ -192,9 +193,78 @@ export const scoreAction = (before, after, action, actor, players = []) => {
     }
   }
 
+  // Misión 3: al empezar los lanzamientos se guarda el puntaje, por si después vuelven al astillero.
+  if (mission?.fleet && action.type === 'stage:advance' && mission.stages[after.stageIndex]?.id === 'launch' && before.stageIndex !== after.stageIndex) {
+    score.beforeLaunch = structuredClone({ ...score, beforeLaunch: null, final: null });
+  }
+
+  // ---------- Misión 3: el final de las cuatro arcas ----------
+  if (after.fleet?.result && !before.fleet?.result) score.final = finalizeFleet(score, after, players);
+
   // ---------- Fin del vuelo: resumen del equipo ----------
   if (flightAfter?.result && !flightBefore?.result) score.final = finalize(score, after, players);
   return score;
+};
+
+/**
+ * Resumen de la misión de las arcas: reparto, viaje, colonia y bonos por rol.
+ * @param {any} score @param {any} data @param {{ id: string, name: string, role: string | null }[]} players
+ */
+const finalizeFleet = (score, data, players) => {
+  const { fleet } = data;
+  const ok = Boolean(fleet.result.ok);
+  const mission = getMission(data.missionId);
+  const journey = fleet.journey;
+  const tasks = (mission?.stages ?? []).flatMap((stage) => stageTasks(stage.id, mission?.id)).filter((task) => !task.skip?.(data));
+  const done = tasks.filter((task) => (task.auto ? task.auto(data) : data.tasks?.[task.id]?.done)).length;
+  const arrived = journey?.arrived ?? 0;
+  const colony = colonyLevel(journey);
+  const intact = journey ? ARKS.reduce((sum, ark) => sum + journey.arks[ark.id].integrity, 0) / (ARKS.length * 100) : 0;
+  const covered = ARKS.filter((ark) => shortfalls(fleet, ark.id).length === 0).length / ARKS.length;
+
+  const holders = (roleId) => players.filter((p) => p.role === roleId);
+  const bonus = (roleId, key, q, label) => {
+    for (const p of holders(roleId)) award(score, { id: p.id, name: p.name, role: p.role }, { key: `final:${key}:${p.id}`, points: POINTS.roleBonus * 0.4, q, label, role: roleId });
+  };
+  bonus('merchant', 'allot', covered, 'Reparto de recursos entre las arcas');
+  bonus('pilot', 'fleet', arrived / ARKS.length, 'Arcas que llegaron a Marte');
+  bonus('engineer', 'hulls', intact, 'Estado de las arcas al llegar');
+  bonus('scientist', 'garden', journey?.arks.george.level ?? 0, 'Lo que llegó de El Jardín');
+  if (ok) for (const p of players) award(score, { id: p.id, name: p.name, role: p.role }, { key: `final:success:${p.id}`, points: POINTS.success, q: colony, label: 'Colonia fundada', role: null });
+
+  const highlights = [];
+  const mistakes = [];
+  if (ok) highlights.push(arrived === ARKS.length ? 'Las cuatro arcas llegaron a Marte.' : `Llegaron ${arrived} de las cuatro arcas: alcanzó para fundar la colonia.`);
+  if (ok) highlights.push(`La colonia quedó al ${Math.round(colony * 100)} %.`);
+  if (covered === 1) highlights.push('Cada arca recibió al menos lo que pedía.');
+  if (leftOf(fleet) > 0) mistakes.push(`Quedaron ${leftOf(fleet)} recursos sin repartir.`);
+  if (!ok) mistakes.push(`Misión fallida: ${fleet.result.text}`);
+  for (const ark of ARKS) {
+    const state = journey?.arks[ark.id];
+    if (!state) continue;
+    if (state.lost) mistakes.push(`${ark.name} no llegó: ${state.events[0]}`);
+    else if (state.level < 1) mistakes.push(`${ark.name} entregó ${state.delivered} de ${ark.needs.cargo} de carga: ${ark.builds} quedó a medias.`);
+    else highlights.push(`${ark.name} entregó todo: ${ark.builds}.`);
+  }
+  const badges = {};
+  for (const player of Object.values(score.players)) {
+    const list = [];
+    const avg = player.measured.count ? player.measured.sum / player.measured.count : 0;
+    if (ok && arrived === ARKS.length) list.push({ id: 'fleet', name: 'Nadie se queda atrás', text: 'Las cuatro arcas llegaron' });
+    if (avg >= 0.85 && player.measured.count >= 4) list.push({ id: 'sharp', name: 'Pulso de cirujano', text: 'Precisión muy alta en sus tareas' });
+    if (player.helps >= 3) list.push({ id: 'team', name: 'Mano amiga', text: 'Ayudó varias veces a otros roles' });
+    badges[player.id] = list;
+  }
+  return {
+    ok, text: fleet.result.text,
+    teamPoints: Object.values(score.players).reduce((sum, p) => sum + p.points, 0),
+    objectivesDone: done, objectivesTotal: tasks.length,
+    science: null, plan: null, difficulty: data.difficulty ?? 'Normal',
+    sandbox: false, missionId: mission?.id ?? null,
+    fleet: { arrived, colony: Math.round(colony * 100), route: fleet.route },
+    highlights, mistakes, badges,
+    roleNames: Object.fromEntries(ROLES.map((role) => [role.id, roleName(role.id)])),
+  };
 };
 
 /** Nota de 0 a 5 estrellas a partir de la precisión media (o null si no hubo nada medible). */

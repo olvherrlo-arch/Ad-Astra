@@ -71,6 +71,26 @@ Llevar el Prisma a Marte y despertarlo con el rayo de la leyenda (rojo, seguido 
 
 Se puede jugar con una sola persona (Play → Solo): los roles sin dueño los maneja quien esté.
 
+## Misión 3: Across the Universe (Proyecto NOAH)
+
+La Tierra ya no alcanza. Cuatro arcas llevan a la humanidad al Marte que despertó el Prisma:
+
+| Arca | Lleva | En Marte levanta |
+| --- | --- | --- |
+| **John**, el Pionero | Tecnología, navegación y comunicaciones | La torre de energía y comunicaciones |
+| **Ringo**, el Guardián | Comida, agua y medicinas | El hábitat con agua y enfermería |
+| **George**, el Jardín | Semillas y ecosistemas | El invernadero y los cultivos |
+| **Paul**, el Legado | Personas, cultura e historia | La escuela y el archivo |
+
+- **Reparto**: hay 28 recursos para repartir en combustible, casco y carga. Cada arca pide un mínimo distinto y no
+  alcanza para llenarlas todas. Reparte Comercio en la mesa de recursos; Vuelo elige la ruta (larga o corta).
+- **Construcción y lanzamientos**: en el astillero, cada arca necesita materiales, propulsión, su carga y su navegación.
+  Se ven crecer en su grada y despegan una por una.
+- **Viaje de la flota**: desde el puente se corrige el rumbo, se mantiene la formación, se reparten víveres y energía y
+  se repara una avería. Cómo llega cada arca sale de lo repartido y de la ruta: nada es sorpresa.
+- **Colonia**: con al menos tres arcas se funda. Cada una aporta lo suyo y lo que levanta crece con la carga que llegó.
+- **Final**: el Prisma vuelve a Marte y termina la campaña. Si sale mal, se vuelve al astillero a repartir de nuevo.
+
 ## Sandbox (modo libre)
 
 En el menú principal, **Sandbox** abre un hangar solo para ti, sin lobby ni espera, con **créditos ilimitados**:

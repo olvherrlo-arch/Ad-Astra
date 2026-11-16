@@ -16,6 +16,9 @@ import {
 /** La tinta de cada rol: tiñe su cuarto y sus puestos. */
 export const ROLE_INK = { scientist: INK.teal, merchant: INK.gold, engineer: INK.coral, pilot: '#5b74c9' };
 const MOON_GROUND = '#d9d2bf';
+/** Las cuatro arcas de la misión 3 (los mismos colores y letras que js/fleet.js). */
+const ARK_INK = { john: '#5b74c9', ringo: '#ff6b5b', george: '#3fa597', paul: '#f3b641' };
+const ARK_LETTER = { john: 'J', ringo: 'R', george: 'G', paul: 'P' };
 
 const rectPath = (ctx, x, y, w, h, r = 0) => () => {
   ctx.beginPath();
@@ -294,7 +297,7 @@ const paintMars = (g, map, bloom) => {
 /** Pinta el fondo fijo de un mapa (en unidades de mundo; quien llama ya puso la escala). */
 export const paintMap = (g, map, { bloom = false } = {}) => {
   g.lineJoin = 'round';
-  if (map.id === 'mars') paintMars(g, map, bloom);
+  if (map.id === 'mars' || map.id === 'colony') paintMars(g, map, bloom);
   else if (map.outdoor) paintMoon(g, map);
   else paintIndoor(g, map);
 };
@@ -843,6 +846,172 @@ const PAINTERS = {
     inkFill(ctx, unit, INK.teal);
     keyLine(ctx, unit, 1.8);
     lights(ctx, t.x + 18, t.y - 8, 4, time, state.broken ? [INK.coral] : [INK.teal, INK.gold]);
+  },
+  /**
+   * Un arca del Proyecto NOAH. En el astillero crece con lo que se le va instalando (0 a 4 partes) y, una vez
+   * lanzada, queda la grada vacía. En la colonia está posada (o falta, si no llegó). Cada una tiene su silueta.
+   */
+  ark: (ctx, s, { time, state }) => {
+    const color = ARK_INK[s.ark] ?? INK.teal;
+    const cx = s.x + s.w / 2, base = s.y + s.h, top = base - s.height;
+    const pad = rectPath(ctx, s.x - 10, s.y + 6, s.w + 20, s.h, 6);
+    paperFill(ctx, pad);
+    inkFill(ctx, pad, halftone(ctx, INK.navy, 0.3, 3));
+    keyLine(ctx, pad, 2);
+    if (state.lost) {
+      label(ctx, 'NO LLEGÓ', cx, s.y + s.h / 2 + 6, { size: 13, color: INK.coral });
+      return;
+    }
+    if (state.launched) {
+      inkFill(ctx, () => { ctx.beginPath(); ctx.ellipse(cx, s.y + s.h / 2 + 6, s.w * 0.36, s.h * 0.3, 0, 0, Math.PI * 2); }, halftone(ctx, INK.navy, 0.7, 3));
+      label(ctx, 'EN VUELO', cx, s.y + s.h / 2 + 8, { size: 13, color: INK.paper });
+      return;
+    }
+    const w = s.w * 0.56, x0 = cx - w / 2, bodyTop = top + s.height * 0.26, bodyBottom = base - 26;
+    const hull = () => { ctx.beginPath(); ctx.moveTo(x0, bodyBottom); ctx.lineTo(x0, bodyTop); ctx.quadraticCurveTo(cx, top - 6, x0 + w, bodyTop); ctx.lineTo(x0 + w, bodyBottom); ctx.closePath(); };
+    // La silueta completa, punteada: lo que falta construir.
+    ctx.save();
+    ctx.setLineDash([7, 6]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = withAlpha(INK.navy, 0.55);
+    hull();
+    ctx.stroke();
+    ctx.restore();
+    const built = Math.max(0, Math.min(4, state.progress ?? 0)) / 4;
+    if (built === 0) return;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(s.x - 30, bodyBottom - (bodyBottom - top + 10) * built, s.w + 60, (bodyBottom - top + 10) * built + 40);
+    ctx.clip();
+    // Motores
+    for (const dx of [-w * 0.28, 0, w * 0.28]) {
+      const bell = () => polyPath(ctx, [[cx + dx - 9, bodyBottom], [cx + dx + 9, bodyBottom], [cx + dx + 14, bodyBottom + 20], [cx + dx - 14, bodyBottom + 20]]);
+      paperFill(ctx, bell);
+      inkFill(ctx, bell, halftone(ctx, INK.navy, 0.6, 2.6));
+      keyLine(ctx, bell, 1.6);
+    }
+    paperFill(ctx, hull);
+    inkFill(ctx, hull, color);
+    // Sombra del lado derecho y lo propio de cada arca (todo recortado a la silueta).
+    ctx.save();
+    hull();
+    ctx.clip();
+    inkFill(ctx, () => { ctx.beginPath(); ctx.rect(cx + w * 0.12, top - 10, w, s.height); }, halftone(ctx, INK.navy, 0.32, 3));
+    if (s.ark === 'ringo') { ctx.fillStyle = INK.paper; ctx.fillRect(x0, bodyTop + 40, w, 16); ctx.fillRect(x0, bodyTop + 90, w, 16); }
+    if (s.ark === 'george') { ctx.fillStyle = withAlpha(INK.paper, 0.85); ctx.beginPath(); ctx.arc(cx, bodyTop + 14, w * 0.5, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#5fae5a'; for (const dx of [-18, 0, 18]) { ctx.beginPath(); ctx.arc(cx + dx, bodyTop + 8, 7, 0, Math.PI * 2); ctx.fill(); } }
+    if (s.ark === 'paul') { ctx.fillStyle = INK.paper; for (let row = 0; row < 4; row++) for (let col = 0; col < 3; col++) ctx.fillRect(x0 + 16 + col * (w - 32) / 2.6, bodyTop + 30 + row * 30, 12, 12); }
+    if (s.ark === 'john') { ctx.strokeStyle = INK.paper; ctx.lineWidth = 3; for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(x0, bodyTop + 30 + i * 34); ctx.lineTo(x0 + w, bodyTop + 50 + i * 34); ctx.stroke(); } }
+    ctx.restore();
+    keyLine(ctx, hull, 2.4);
+    if (s.ark === 'john') { ctx.strokeStyle = INK.navy; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cx, top + 12); ctx.lineTo(cx, top - 26); ctx.stroke(); const dish = circlePath(ctx, cx, top - 28, 7); paperFill(ctx, dish); inkFill(ctx, dish, INK.gold); keyLine(ctx, dish, 1.5); }
+    // Emblema con su letra.
+    const badge = circlePath(ctx, cx, bodyTop + s.height * 0.3, 17);
+    paperFill(ctx, badge);
+    keyLine(ctx, badge, 2);
+    label(ctx, ARK_LETTER[s.ark] ?? '', cx, bodyTop + s.height * 0.3 + 1, { size: 20, color: INK.navy, font: DISPLAY_FONT, narrow: false });
+    ctx.restore();
+    if (state.fueled) lights(ctx, cx - 9, base - 4, 3, time, [INK.teal, INK.gold]);
+  },
+  /** Lo que cada arca levanta en la colonia. Crece con las tareas hechas y con la carga que de verdad llegó. */
+  colonysite: (ctx, s, { time, state }) => {
+    const cx = s.x + s.w / 2, base = s.y + s.h, level = state.lost ? 0 : state.level ?? 0;
+    const plot = rectPath(ctx, s.x, s.y, s.w, s.h, 8);
+    ctx.save();
+    ctx.setLineDash([8, 6]);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = withAlpha(INK.navy, level > 0 ? 0.3 : 0.75);
+    plot();
+    ctx.stroke();
+    ctx.restore();
+    if (state.lost) { label(ctx, 'SIN ARCA', cx, s.y + s.h / 2 + 4, { size: 12, color: INK.coral }); return; }
+    if (level <= 0) return;
+    const h = s.height * Math.min(1, 0.35 + level * 0.65);
+    ctx.save();
+    ctx.globalAlpha = 0.55 + 0.45 * Math.min(1, level);
+    if (s.build === 'tower') {
+      ctx.strokeStyle = INK.navy;
+      ctx.lineWidth = 4;
+      for (const dx of [-26, 26]) { ctx.beginPath(); ctx.moveTo(cx + dx, base - 4); ctx.lineTo(cx, base - h); ctx.stroke(); }
+      ctx.lineWidth = 2;
+      for (let i = 1; i < 4; i++) { const y = base - (h * i) / 4, half = 26 * (1 - i / 4); ctx.beginPath(); ctx.moveTo(cx - half, y); ctx.lineTo(cx + half, y); ctx.stroke(); }
+      const dish = circlePath(ctx, cx, base - h - 8, 11);
+      paperFill(ctx, dish);
+      inkFill(ctx, dish, '#5b74c9');
+      keyLine(ctx, dish, 1.8);
+      if (level >= 1) lights(ctx, cx - 9, base - h + 14, 3, time, [INK.gold, INK.teal]);
+    } else if (s.build === 'habitat') {
+      const dome = () => { ctx.beginPath(); ctx.moveTo(s.x + 14, base - 4); ctx.arc(cx, base - 4, s.w / 2 - 14, Math.PI, 0); ctx.closePath(); };
+      ctx.save(); ctx.translate(0, s.height - h); paperFill(ctx, dome); inkFill(ctx, dome, INK.coral); inkFill(ctx, dome, halftone(ctx, INK.navy, 0.2, 3)); keyLine(ctx, dome, 2.2); ctx.restore();
+      const door = rectPath(ctx, cx - 12, base - 34, 24, 30, 4);
+      paperFill(ctx, door);
+      keyLine(ctx, door, 1.8);
+      if (level >= 1) { const tank = rectPath(ctx, s.x + s.w - 30, base - 52, 24, 48, 8); paperFill(ctx, tank); inkFill(ctx, tank, '#7ea6ff'); keyLine(ctx, tank, 1.8); }
+    } else if (s.build === 'garden') {
+      const house = () => { ctx.beginPath(); ctx.moveTo(s.x + 10, base - 4); ctx.lineTo(s.x + 10, base - h * 0.5); ctx.quadraticCurveTo(cx, base - h * 1.25, s.x + s.w - 10, base - h * 0.5); ctx.lineTo(s.x + s.w - 10, base - 4); ctx.closePath(); };
+      paperFill(ctx, house, '#dff0e6');
+      inkFill(ctx, house, halftone(ctx, INK.teal, 0.35, 3));
+      keyLine(ctx, house, 2.2);
+      const rows = Math.round(level * 5);
+      for (let i = 0; i < rows; i++) sprout(ctx, s.x + 30 + i * ((s.w - 60) / 4), base - 8, 13);
+    } else {
+      const wall = rectPath(ctx, s.x + 16, base - h * 0.7, s.w - 32, h * 0.7 - 4, 3);
+      paperFill(ctx, wall);
+      inkFill(ctx, wall, INK.gold);
+      keyLine(ctx, wall, 2.2);
+      const roof = () => polyPath(ctx, [[s.x + 6, base - h * 0.7], [cx, base - h], [s.x + s.w - 6, base - h * 0.7]]);
+      paperFill(ctx, roof);
+      inkFill(ctx, roof, INK.coral);
+      keyLine(ctx, roof, 2.2);
+      ctx.fillStyle = INK.navy;
+      for (const dx of [-36, 36]) ctx.fillRect(cx + dx - 8, base - h * 0.5, 16, 16);
+      if (level >= 1) { ctx.strokeStyle = INK.navy; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cx, base - h); ctx.lineTo(cx, base - h - 26); ctx.stroke(); const flag = () => polyPath(ctx, [[cx, base - h - 26], [cx + 22, base - h - 20], [cx, base - h - 13]]); paperFill(ctx, flag); inkFill(ctx, flag, INK.teal); keyLine(ctx, flag, 1.5); }
+    }
+    ctx.restore();
+  },
+  /** El monumento donde el Prisma vuelve a Marte. */
+  monument: (ctx, s, { time, state }) => {
+    const cx = s.x + s.w / 2, base = s.y + s.h, top = base - s.height;
+    const steps = [[s.w, 16], [s.w * 0.72, 16], [s.w * 0.44, 30]];
+    let y = base;
+    for (const [w, h] of steps) {
+      const step = rectPath(ctx, cx - w / 2, y - h, w, h, 3);
+      paperFill(ctx, step);
+      inkFill(ctx, step, halftone(ctx, INK.navy, 0.25, 3));
+      keyLine(ctx, step, 2);
+      y -= h;
+    }
+    if (!state.prism) {
+      ctx.save();
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = withAlpha(INK.navy, 0.7);
+      polyPath(ctx, [[cx, top + 4], [cx + 20, top + 40], [cx - 20, top + 40]]);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    const pulse = 0.5 + 0.5 * Math.sin(time * 2.4);
+    ctx.save();
+    ctx.globalAlpha = (state.active ? 0.5 : 0.22) + 0.25 * pulse;
+    ctx.beginPath();
+    ctx.arc(cx, top + 24, (state.active ? 54 : 30) + pulse * 12, 0, Math.PI * 2);
+    ctx.fillStyle = state.active ? '#7ea6ff' : INK.gold;
+    ctx.fill();
+    ctx.restore();
+    const gem = () => polyPath(ctx, [[cx, top], [cx + 22, top + 40], [cx - 22, top + 40]]);
+    paperFill(ctx, gem);
+    inkFill(ctx, gem, state.active ? INK.teal : INK.gold);
+    keyLine(ctx, gem, 2.2);
+  },
+  /** Mesa con el mapa de la flota: cuatro puntos que viajan en formación. */
+  fleetmap: (ctx, s, { time }) => {
+    const { t } = box(ctx, s, { top: INK.navy, front: halftone(ctx, INK.navy, 0.5, 3), shade: 0.2 });
+    Object.values(ARK_INK).forEach((color, i) => {
+      const x = t.x + 30 + i * ((t.w - 60) / 3), y = t.y + t.h / 2 + Math.sin(time * 1.6 + i) * 6;
+      const dot = circlePath(ctx, x, y, 7);
+      paperFill(ctx, dot);
+      inkFill(ctx, dot, color);
+    });
   },
   /** Mástil meteorológico: un poste con copas que giran (más rápido en la tormenta). */
   mast: (ctx, s, { time, state }) => {

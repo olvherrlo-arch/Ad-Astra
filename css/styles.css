@@ -1636,6 +1636,31 @@ details.part-card.requested { border-color: var(--gold); box-shadow: 3px 3px 0 v
 
 /* Tomas de cine entre fases (js/cinematic.js) */
 .cine-shot { position: fixed; inset: 0; z-index: 50; display: grid; place-items: end start; overflow: hidden; background: #0b1230; cursor: pointer; animation: cine-fade 0.5s ease-out both; }
+/* Misión 3: la mesa de recursos (js/fleetview.js). Usa los estilos del plan y agrega las fichas de las arcas. */
+.fleet-left { color: #f3b641; }
+.fleet-arks { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.fleet-ark { display: grid; gap: 6px; align-content: start; padding: 12px 14px 14px; background: #f4ecd9; color: #1f2d5c; border: 2px solid #1f2d5c; border-top: 8px solid var(--ark); border-radius: 6px; }
+.fleet-ark.lost { opacity: 0.6; }
+.fleet-ark-head { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; }
+.fleet-ark-letter { display: grid; place-items: center; width: 30px; height: 30px; border: 2px solid #1f2d5c; border-radius: 50%; background: var(--ark); font-family: var(--font-display); }
+.fleet-ark-carries { margin: 0; font-weight: 600; }
+.fleet-ark-builds { margin: 0 0 4px; font-size: 0.85rem; opacity: 0.8; }
+.fleet-row { display: grid; grid-template-columns: 92px auto 1fr 34px 34px; align-items: center; gap: 6px; font-size: 0.9rem; }
+.fleet-system { font-weight: 700; }
+.fleet-pips { display: inline-flex; gap: 3px; }
+.fleet-pips i { width: 13px; height: 16px; border: 2px solid #1f2d5c; border-radius: 2px; }
+.fleet-pips i.on { background: var(--ark); }
+.fleet-pips i.need { box-shadow: 0 4px 0 -1px #1f2d5c; }
+.fleet-row small { font-size: 0.75rem; }
+.fleet-row small.down, .fleet-outcome.down { color: #b3382c; font-weight: 700; }
+.fleet-row small.up, .fleet-outcome.up { color: #1f7a6d; font-weight: 700; }
+.fleet-step { height: 32px; padding: 0; background: #1f2d5c; color: #f4ecd9; border: none; border-radius: 4px; font-size: 1.2rem; font-weight: 700; line-height: 1; }
+.fleet-step:disabled { opacity: 0.3; }
+.fleet-outcome { margin: 4px 0 0; font-size: 0.9rem; }
+.fleet-ark .plan-facts { margin: 0; padding-left: 18px; font-size: 0.82rem; }
+.lightning-shot.finale .lightning-red, .lightning-shot.finale .lightning-bolt { display: none; }
+.lightning-shot.finale > * { animation-delay: -1.2s; }
+
 /* El rayo de Marte: rojo, destello azul y la onda que se abre (js/cinematic.js → playLightning). */
 .lightning-shot { position: fixed; inset: 0; z-index: 60; overflow: hidden; background: #1a0d14; pointer-events: none; animation: cine-fade 0.25s ease-out both; }
 .lightning-shot > * { position: absolute; inset: 0; opacity: 0; }

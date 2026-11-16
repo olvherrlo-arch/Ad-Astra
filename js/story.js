@@ -144,6 +144,29 @@ BRIEFINGS.mars = {
   ],
 };
 
+BRIEFINGS.exodus = {
+  title: 'Across the Universe',
+  lastButton: 'Empezar la misión',
+  pages: [
+    { art: 'earth', camera: 'out', heading: 'La Tierra ya no alcanza',
+      text: 'El Prisma despertó a Marte. La Tierra, en cambio, no se recupera. Queda una sola salida, y es para todos: mudarse.' },
+    { art: 'rocket', camera: 'up', speaker: 'Control de misión', heading: 'Proyecto NOAH',
+      text: 'No va a ir una nave. Van a ir cuatro arcas, cada una con una parte de lo que somos:',
+      list: [
+        'John, el Pionero: tecnología, navegación y comunicaciones',
+        'Ringo, el Guardián: comida, agua y medicinas',
+        'George, el Jardín: semillas y ecosistemas',
+        'Paul, el Legado: las personas, su historia y su cultura',
+      ] },
+    { art: 'ruins', camera: 'right', heading: 'No alcanza para todo',
+      text: 'Los recursos son los que hay. Más combustible para un arca es menos casco para otra; más carga es menos margen. Ninguna puede salir vacía, y no todas pueden salir llenas. Decidan juntos.' },
+    { art: 'mars', camera: 'in', heading: 'Viajar juntas',
+      text: 'Cuatro naves, un solo rumbo. La ruta corta llega antes, pero pasa más cerca del Sol. La larga cuida el casco y gasta víveres. Si un arca se queda atrás, se queda con lo que llevaba.' },
+    { art: 'bloom', camera: 'out', heading: 'Empezar de nuevo',
+      text: 'Con tres arcas se puede fundar una colonia. Con cuatro, un hogar. Y cuando todo esté en pie, falta devolverle algo a Marte: el Prisma que lo despertó.' },
+  ],
+};
+
 /** La historia que toca ver en una escena, o null si en esa escena no hay historia. */
 export const getStory = (scene, missionId) => {
   if (scene === 'prologue') return PROLOGUE;

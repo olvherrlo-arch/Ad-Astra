@@ -31,13 +31,14 @@
  */
 import { randomInt } from 'node:crypto';
 import { emptyRocket, installedUids, toPhysicsStages } from '../js/assembly.js';
+import { ARKS, MIN_ARKS, ROUTES, SYSTEMS, allot, canBuild, colonyLevel, freshFleet, getArk, resolveJourney } from '../js/fleet.js';
 import { SANDBOX, freshCampaign, getMission, missionFor } from '../js/missions.js';
 import { UNLIMITED_CREDITS, number } from '../js/partinfo.js';
 import { propellantCost, validateRocket } from '../js/rocket.js';
 import { EVENTS, ROLES, canActAs, roleHolder, roleName } from '../js/shared.js';
 import { ORBITS, PROFILES, SITES, planOf } from '../js/missionplan.js';
 import { getStory } from '../js/story.js';
-import { missingTasks, rolesReady } from '../js/tasks.js';
+import { getTask, missingTasks, rolesReady } from '../js/tasks.js';
 import { mapIdFor } from '../js/worldmaps.js';
 import { applyBuildAction, isBuildAction } from './build.js';
 import { applyEconomyAction, isEconomyAction, openEconomy } from './economy.js';
@@ -82,6 +83,7 @@ export const createInitialState = (campaign = freshCampaign()) => ({
     economy: null, //                presupuesto, mercado y bodega (se abre al elegir la misión)
     rocket: null, //                 el cohete armado (js/assembly.js)
     flight: null, //                 el vuelo en curso (server/flight.js)
+    fleet: null, //                  las cuatro arcas de la misión 3 (js/fleet.js)
     undoSteps: 0, //                 cuántos cambios del cohete se pueden deshacer
     ...freshWorld(), //              tareas hechas, lo que lleva cada quien, ventajas (server/world.js)
     score: null, //                  puntaje de cada jugador y resumen final (server/score.js)
@@ -132,6 +134,10 @@ export const isGameAction = (action) => {
       return true;
     case 'mission:start':
       return typeof action.missionId === 'string' && action.missionId.length <= 20;
+    case 'fleet:allot':
+      return typeof action.ark === 'string' && typeof action.system === 'string' && (action.delta === 1 || action.delta === -1);
+    case 'fleet:route':
+      return typeof action.route === 'string';
     case 'plan:set':
       return ['site', 'orbit', 'profile'].every((key) => action[key] === undefined || typeof action[key] === 'string');
     default:
@@ -280,6 +286,7 @@ const applyRules = (state, action, actor) => {
         plan: { ...planOf(null) },
         rocket: emptyRocket(),
         flight: null,
+        fleet: chosen.fleet ? freshFleet() : null,
         undoSteps: 0,
         ...freshWorld(),
         scene: 'briefing',
@@ -312,6 +319,24 @@ const applyRules = (state, action, actor) => {
       return commit({ plan: { ...plan, decided: true } }, `${actor.name} cambió el plan: ${SITES[plan.site].name}, ${ORBITS[plan.orbit].name.toLowerCase()}.`);
     }
 
+    // ---------- Misión 3: repartir los recursos entre las arcas y elegir la ruta (js/fleet.js) ----------
+    case 'fleet:allot': {
+      if (data.scene !== 'mission' || !mission?.fleet || !data.fleet) return { error: 'Los recursos se reparten en la misión de las arcas.' };
+      if (!['planning', 'build'].includes(stages[data.stageIndex]?.id)) return { error: 'Las arcas ya despegaron: el reparto quedó fijo.' };
+      if (!actor.canActAs('merchant')) return { error: 'Los recursos los reparte Comercio.' };
+      const changed = allot(data.fleet, action.ark, action.system, action.delta);
+      if (changed.error) return { error: changed.error };
+      const level = changed.fleet.alloc[action.ark][action.system];
+      return commit({ fleet: changed.fleet }, `${actor.name} ${action.delta > 0 ? 'sumó' : 'quitó'} ${SYSTEMS[action.system].name.toLowerCase()} a ${getArk(action.ark).name} (nivel ${level}).`);
+    }
+    case 'fleet:route': {
+      if (data.scene !== 'mission' || !mission?.fleet || !data.fleet) return { error: 'La ruta se elige en la misión de las arcas.' };
+      if (!['planning', 'build', 'launch'].includes(stages[data.stageIndex]?.id)) return { error: 'La flota ya está en camino: la ruta quedó fija.' };
+      if (!actor.canActAs('pilot')) return { error: 'La ruta la elige Vuelo.' };
+      if (!ROUTES[action.route]) return { error: 'Esa ruta no existe.' };
+      return commit({ fleet: { ...data.fleet, route: action.route, routeDecided: true } }, `${actor.name} eligió la ${ROUTES[action.route].name.toLowerCase()} para la flota.`);
+    }
+
     // ---------- Rediseñar y volver a volar ----------
     // Desde la Evaluación el anfitrión puede volver a Construcción con el mismo cohete, la bodega y el dinero
     // que quedó (el combustible ya quemado no se devuelve). Las tareas de la estación siguen hechas: se
@@ -319,6 +344,16 @@ const applyRules = (state, action, actor) => {
     case 'mission:retry': {
       const refusal = hostOnly('decide volver a intentarlo');
       if (refusal) return refusal;
+      if (mission?.fleet) {
+        // Las arcas: se vuelve al Reparto con lo construido; lo que pasó desde el despegue se borra.
+        if (data.scene !== 'mission' || stages[data.stageIndex]?.id !== 'debrief') return { error: 'Se puede volver a intentar desde la Evaluación.' };
+        const redo = ['launch', 'fleet', 'arrival', 'colony', 'finale'];
+        const tasks = Object.fromEntries(Object.entries(data.tasks ?? {}).filter(([id]) => !redo.includes(getTask(id)?.stage)));
+        return commit(
+          { stageIndex: stages.findIndex((stage) => stage.id === 'planning'), fleet: { ...data.fleet, journey: null, result: null }, tasks, carrying: {}, jobs: {}, attempt: (data.attempt ?? 1) + 1 },
+          `${actor.name} vuelve al astillero: intento ${(data.attempt ?? 1) + 1}. Repartan de nuevo y lancen otra vez.`,
+        );
+      }
       // En el Sandbox también se puede cortar una prueba en pleno vuelo y volver al hangar.
       const abort = Boolean(mission?.sandbox && data.flight);
       if (data.scene !== 'mission' || (stages[data.stageIndex]?.id !== 'debrief' && !abort)) return { error: 'Se puede volver a intentar desde la Evaluación.' };
@@ -337,7 +372,7 @@ const applyRules = (state, action, actor) => {
       if (data.scene !== 'mission') return { error: 'La misión todavía no empezó.' };
       if (data.stageIndex >= stages.length - 1) return { error: 'Esta es la última etapa.' };
       const current = stages[data.stageIndex];
-      if (FLIGHT_STAGES.includes(current.id)) return { error: 'Durante el viaje la etapa cambia sola, cuando terminan sus tramos.' };
+      if (FLIGHT_STAGES.includes(current.id) && !mission.fleet) return { error: 'Durante el viaje la etapa cambia sola, cuando terminan sus tramos.' };
       const missing = missingTasks(data, current.id, actor.heldRoles);
       if (missing.length > 0) {
         const more = missing.length > 1 ? ` (y ${missing.length - 1} más)` : '';
@@ -345,6 +380,33 @@ const applyRules = (state, action, actor) => {
       }
       const next = stages[data.stageIndex + 1];
       const moveOn = { stageIndex: data.stageIndex + 1 };
+
+      // ---------- Misión 3: lo que pasa al cerrar cada parte ----------
+      if (mission.fleet) {
+        const debrief = stages.findIndex((stage) => stage.id === 'debrief');
+        if (current.id === 'build') {
+          const empty = ARKS.find((ark) => !canBuild(data.fleet, ark.id));
+          if (empty) return { error: `${empty.name} no puede despegar vacía: le falta al menos un nivel de cada sistema (mesa de recursos).` };
+        }
+        if (current.id === 'fleet') {
+          // El viaje se resuelve con lo que el equipo repartió y la ruta que eligió.
+          const journey = resolveJourney(data.fleet, state.secret.seed);
+          const lines = ARKS.map((ark) => `${ark.name}: ${journey.arks[ark.id].events.join(' ')}`);
+          if (journey.arrived < MIN_ARKS) {
+            const text = `solo ${journey.arrived === 1 ? 'llegó un arca' : `llegaron ${journey.arrived} arcas`} a Marte: no alcanza para fundar la colonia.`;
+            return commit({ stageIndex: debrief, fleet: { ...data.fleet, journey, result: { ok: false, text } } }, [...lines, `Misión fallida: ${text}`]);
+          }
+          return commit({ ...moveOn, fleet: { ...data.fleet, journey } }, [...lines, `Marte a la vista. Empieza la etapa: ${next.name}.`]);
+        }
+        if (current.id === 'finale') {
+          const arrived = data.fleet.journey?.arrived ?? 0;
+          const level = Math.round(colonyLevel(data.fleet.journey) * 100);
+          const text = `${arrived === ARKS.length ? 'Las cuatro arcas llegaron' : `Llegaron ${arrived} de las cuatro arcas`} y la colonia quedó en pie (${level} %). El Prisma volvió a Marte: la humanidad tiene un nuevo hogar.`;
+          return commit({ stageIndex: debrief, fleet: { ...data.fleet, result: { ok: true, text } }, campaign: completeMission(data.campaign, data.missionId) },
+            ['El Prisma libera su energía sobre Marte. La leyenda de Aztlán se cumplió.', `Misión cumplida: ${text}`]);
+        }
+        return commit(moveOn, `Empieza la etapa: ${next.name}.`);
+      }
 
       // Al salir de Validación se despega: lo da Vuelo, el cohete tiene que pasar la revisión y se paga el combustible.
       if (current.id === 'validation') {
