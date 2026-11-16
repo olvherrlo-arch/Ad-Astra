@@ -18,5 +18,5 @@ Lee primero `CLAUDE.md` (está al día: estructura, reglas, pruebas, cómo compa
 3. HECHO: modo Sandbox (ver CLAUDE.md, sección Expansión). Sigue la expansión: Misión 2, Misión 3, integración.
 4. Guardar y compartir diseños de cohete (código para exportar e importar).
 5. Informe de misión descargable (página para imprimir o PDF).
-6. HECHO: misiones 2 y 3. Falta el cambio de personaje en solitario, tutoriales nuevos y probar con gente (ver CLAUDE.md).
+6. HECHO: misiones 2 y 3. También el cambio de personaje en solitario y los tutoriales nuevos. Falta probar con gente (ver CLAUDE.md).
 7. Pulido: botones unificados, animaciones de confirmación, dibujos finales de piezas.

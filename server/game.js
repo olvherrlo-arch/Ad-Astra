@@ -35,17 +35,18 @@ import { ARKS, MIN_ARKS, ROUTES, SYSTEMS, allot, canBuild, colonyLevel, freshFle
 import { SANDBOX, freshCampaign, getMission, missionFor } from '../js/missions.js';
 import { UNLIMITED_CREDITS, number } from '../js/partinfo.js';
 import { propellantCost, validateRocket } from '../js/rocket.js';
-import { EVENTS, ROLES, canActAs, roleHolder, roleName } from '../js/shared.js';
+import { EVENTS, ROLES, canActAs, isRoleId, roleHolder, roleName } from '../js/shared.js';
 import { ORBITS, PROFILES, SITES, planOf } from '../js/missionplan.js';
 import { getStory } from '../js/story.js';
 import { getTask, missingTasks, rolesReady } from '../js/tasks.js';
-import { mapIdFor } from '../js/worldmaps.js';
+import { MAPS, mapIdFor, spawnFor } from '../js/worldmaps.js';
 import { applyBuildAction, isBuildAction } from './build.js';
 import { applyEconomyAction, isEconomyAction, openEconomy } from './economy.js';
 import { DIFFICULTY, applyFlightAction, isFlightAction, startFlight } from './flight.js';
 import { addRecord, listRecords } from './records.js';
 import { scoreAction } from './score.js';
 import { applyWorldAction, isWorldAction } from './world.js';
+import { toSnapshot } from './rooms.js';
 
 const LOG_LIMIT = 30;
 /** Etapas de la misión que son parte del viaje (las maneja server/flight.js). */
@@ -158,6 +159,7 @@ const settle = (previous, merged) => {
     || merged.flight?.legIndex !== previous.flight?.legIndex
     || mapIdFor(merged) !== mapIdFor(previous);
   if (moved) {
+    merged.parked = {};
     merged.carrying = {};
     merged.jobs = {};
   } else if (merged.flight?.phase !== 'emergency' && Object.values(merged.carrying ?? {}).some((held) => held.id === 'spare')) {
@@ -507,6 +509,33 @@ export const registerGameHandlers = (io, socket, store) => {
     const { roomCode, player } = socket.data;
     const room = roomCode ? store.get(roomCode) : undefined;
     if (!room || !player || room.phase !== 'playing') return;
+
+    // ---------- En solitario: cambiar de personaje ----------
+    // Cada personaje conserva dónde quedó parado y lo que llevaba en las manos; las tareas hechas no cambian.
+    if (action?.type === 'crew:switch') {
+      const refuse = (message) => socket.emit(EVENTS.STATE_REJECTED, { message });
+      if (!player.crew) return refuse('Cambiar de personaje es para las partidas en solitario.');
+      if (!isRoleId(action.role)) return refuse('Ese rol no existe.');
+      if (action.role === player.role) return refuse(`Ya estás manejando a ${roleName(action.role)}.`);
+      const data = room.state.data;
+      const carrying = { ...(data.carrying ?? {}) };
+      const parked = { ...(data.parked ?? {}) };
+      if (carrying[player.id]) { parked[player.role] = carrying[player.id]; delete carrying[player.id]; }
+      if (parked[action.role]) { carrying[player.id] = parked[action.role]; delete parked[action.role]; }
+      room.crewSpots = { ...(room.crewSpots ?? {}), [player.role]: { x: player.x, y: player.y, facing: player.facing, map: player.map } };
+      const spot = room.crewSpots[action.role];
+      delete room.crewSpots[action.role];
+      player.role = action.role;
+      // Aparece donde ese personaje había quedado; si todavía no se movió en este mapa, en su lugar de llegada.
+      const mapId = mapIdFor(data);
+      const arrival = spawnFor(MAPS[mapId], ROLES.findIndex((role) => role.id === action.role));
+      const at = spot && spot.map === mapId ? spot : { x: Math.round(arrival.x), y: Math.round(arrival.y), facing: 1 };
+      Object.assign(player, { x: at.x, y: at.y, facing: at.facing, map: mapId });
+      room.state = { ...room.state, version: room.state.version + 1, data: { ...data, carrying, parked } };
+      io.to(room.code).emit(EVENTS.ROOM_UPDATE, toSnapshot(room));
+      io.to(room.code).emit(EVENTS.STATE_SYNC, publicState(room.state));
+      return;
+    }
     if (!isGameAction(action)) return socket.emit(EVENTS.STATE_REJECTED, { message: 'Acción desconocida.' });
 
     const players = [...room.players.values()];

@@ -82,7 +82,9 @@ export const showRoleReveal = async () => {
   if (free.length > 0) {
     const demo = /** @type {HTMLElement} */ (box.querySelector('.reveal-demo'));
     demo.hidden = false;
-    demo.textContent = `Quedaron sin dueño: ${free.map((r) => r.name).join(', ')}. En la misión los maneja cualquiera.`;
+    demo.textContent = room.players.length === 1 && room.players[0].crew
+      ? 'Juegas en solitario: tienes a los cuatro tripulantes. Empiezas con este y cambias cuando quieras (teclas 1 a 4, o tocando al personaje).'
+      : `Quedaron sin dueño: ${free.map((r) => r.name).join(', ')}. En la misión los maneja cualquiera.`;
   }
 
   // Un tripulante por lugar: su astronauta y su carta (boca abajo hasta el final).

@@ -338,4 +338,108 @@ export const TUTORIALS = [
       },
     ],
   },
+  // ---------------------------------------------------------- Lo nuevo de la expansión
+  {
+    id: 'solo',
+    title: 'Jugar en solitario',
+    icon: '👤',
+    whereText: 'Al empezar una misión con una sola persona',
+    when: (ctx) => ctx.screen === 'game' && Boolean(ctx.me?.crew) && Boolean(ctx.$('.world')),
+    steps: [
+      {
+        title: 'Tienes a los cuatro',
+        text: 'En solitario los cuatro tripulantes están en el mundo y manejas uno a la vez. Las tareas de todos cuentan: nadie las hace por ti.',
+        target: '.world-team',
+      },
+      {
+        title: 'Cambiar de personaje',
+        text: 'Toca una ficha del equipo, toca al personaje, o usa las teclas 1 a 4. Cada uno se queda donde lo dejaste, con lo que llevaba en las manos.',
+        target: '.world-team',
+        todo: 'Cambia a otro personaje.',
+        baseline: (ctx) => ctx.me?.role,
+        waitFor: (ctx, before) => Boolean(ctx.me?.role) && ctx.me.role !== before,
+      },
+    ],
+  },
+  {
+    id: 'sandbox',
+    title: 'Sandbox',
+    icon: '🧪',
+    whereText: 'En el hangar del modo libre',
+    when: (ctx) => ctx.screen === 'game' && ctx.data?.missionId === 'sandbox' && Boolean(ctx.$('.world')),
+    steps: [
+      {
+        title: 'Un hangar para probar',
+        text: 'Aquí los créditos no se acaban y se vende todo. Lo que no cambia es la física: un cohete mal pensado falla igual.',
+        target: '.world-objectives',
+      },
+      {
+        title: 'Compra, arma, elige y despega',
+        text: 'Terminal de suministros para comprar, consola de ensamblaje para armar, tablero de misión para elegir el vuelo de prueba y plataforma para despegar.',
+        target: '.world-objectives',
+      },
+      {
+        title: 'Vuelve y cambia algo',
+        text: 'Al terminar (o abortando desde Telemetría) vuelves al hangar con tu cohete. Cambia una sola cosa y mira qué pasa.',
+      },
+    ],
+  },
+  {
+    id: 'mars',
+    title: 'El experimento en Marte',
+    icon: '⚡',
+    whereText: 'Al aterrizar en Marte',
+    when: (ctx) => ctx.screen === 'game' && ctx.data?.missionId === 'mars' && ['surface', 'storm'].includes(ctx.stageId) && Boolean(ctx.$('.world')),
+    steps: [
+      {
+        title: 'Todo depende de todo',
+        text: 'El aparato no se arma sin los materiales, y el Prisma no se coloca sin los cables. Miren la lista: dice qué falta y a quién le toca.',
+        target: '.world-objectives',
+      },
+      {
+        title: 'La tormenta',
+        text: 'Cuando todo esté listo, Vuelo da la alerta desde el mástil. En la tormenta casi no hay Sol: la nave vive de sus baterías y se camina más lento.',
+        target: '.world-flight',
+      },
+      {
+        title: 'El rayo',
+        text: 'Con el experimento sostenido entre los cuatro, Vuelo lo sincroniza con el rayo desde el mástil. No hay segunda oportunidad con ese rayo.',
+        roles: ['pilot'],
+        target: '.world-objectives',
+      },
+    ],
+  },
+  {
+    id: 'arks',
+    title: 'Las cuatro arcas',
+    icon: '🛳',
+    whereText: 'En el astillero del Proyecto NOAH',
+    when: (ctx) => ctx.screen === 'game' && ctx.data?.missionId === 'exodus' && ['planning', 'build'].includes(ctx.stageId) && Boolean(ctx.$('.world')),
+    steps: [
+      {
+        title: 'No alcanza para todo',
+        text: 'Hay 28 recursos para las cuatro arcas. Cada una pide un mínimo distinto de combustible, casco y carga. Por debajo, el viaje la castiga.',
+        target: '.world-objectives',
+      },
+      {
+        title: 'La mesa de recursos',
+        text: 'Comercio reparte con + y −. La marca debajo de cada barra es lo que esa arca pide. Ninguna puede despegar con un sistema en cero.',
+        roles: ['merchant'],
+        target: '.world-objectives',
+        todo: 'Abre la mesa de recursos y dale algo a un arca.',
+        baseline: (ctx) => JSON.stringify(ctx.data?.fleet?.alloc ?? {}),
+        waitFor: (ctx, before) => JSON.stringify(ctx.data?.fleet?.alloc ?? {}) !== before,
+      },
+      {
+        title: 'La ruta',
+        text: 'Vuelo elige en la misma mesa: la ruta corta pide más combustible y más casco; la larga gasta los víveres de Ringo y las plantas de George.',
+        roles: ['pilot'],
+        target: '.world-objectives',
+      },
+      {
+        title: 'Con tres alcanza, con cuatro es un hogar',
+        text: 'Si un arca no llega, la colonia se queda sin lo que traía. Y si sale mal, se puede volver al astillero a repartir de nuevo.',
+      },
+    ],
+  },
 ];

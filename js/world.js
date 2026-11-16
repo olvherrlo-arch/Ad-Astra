@@ -38,7 +38,7 @@ import { getMission, missionFor } from './missions.js';
 import { credits, number } from './partinfo.js';
 import { playBurn, playLander } from './pilotgames.js';
 import { INK, UI_FONT, condensed, halftone, inkFill, keyLine, paperFill, withAlpha } from './riso.js';
-import { ROLES, canActAs, colorHex, roleHolder, roleName } from './shared.js';
+import { ROLES, canActAs, colorHex, roleHolder, roleName, soloCrew } from './shared.js';
 import { canvasDpr, getSettings, onSettings, reducedEffects } from './settings.js';
 import { sounds } from './sound.js';
 import { FAULT_STATION, JOBS, PERKS, PREP, SPARE_STATION, getTask, isTaskDone, missingTasks, stageTasks, taskProgress } from './tasks.js';
@@ -152,6 +152,7 @@ export const mountWorld = (container) => {
   let scanAt = 0;
   let pulses = []; //          anillos que se abren al escanear
   let lastStage = null;
+  let lastRole = null; //      el personaje que manejaba (en solitario, para notar el cambio)
   let paintedBloom = false; // el fondo de Marte ya está pintado con los brotes
   let toastTimer = 0;
   let unmountTool = null;
@@ -663,7 +664,8 @@ export const mountWorld = (container) => {
   // ============================================================
   //  Tripulantes
   // ============================================================
-  const startAt = (player, index) => (player.map === mapId ? { x: player.x, y: player.y } : spawnFor(map, index));
+  // En solitario cada personaje llega a su propio lugar (según su rol), así no aparecen encimados.
+  const startAt = (player, index) => (player.map === mapId ? { x: player.x, y: player.y } : spawnFor(map, player.crew ? Math.max(0, ROLES.findIndex((role) => role.id === player.role)) : index));
   const syncActors = (fresh) => {
     const players = session.room.players;
     const ids = new Set(players.map((p) => p.id));
@@ -934,6 +936,42 @@ export const mountWorld = (container) => {
   };
 
   const ACT_TEXT = { busy: 'trabajando…', burn: 'pilotando…' };
+
+  // ============================================================
+  //  En solitario: los otros tres personajes y cómo cambiar
+  // ============================================================
+  /** Dónde está parado cada personaje que no se maneja: donde lo dejaste, o su lugar de llegada al mapa. */
+  const crewSpots = (g) => {
+    const solo = soloCrew(g.players);
+    if (!solo) return [];
+    return ROLES.filter((role) => role.id !== solo.role).map((role) => {
+      const saved = session.room.crewSpots?.[role.id];
+      const at = saved && saved.map === mapId ? saved : { ...spawnFor(map, ROLES.indexOf(role)), facing: 1 };
+      return { role: role.id, x: at.x, y: at.y, facing: at.facing ?? 1 };
+    });
+  };
+  const switchTo = (roleId) => {
+    if (blocking()) return;
+    const g = game();
+    if (!g || !soloCrew(g.players) || g.me?.role === roleId) return;
+    sounds.pick();
+    sendMine(true); // que el servidor sepa dónde queda parado el que dejo
+    sendAction({ type: 'crew:switch', role: roleId });
+  };
+  const drawCrew = (spot, g, time) => {
+    const me = g.me;
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.beginPath();
+    ctx.ellipse(spot.x, spot.y, 21, 6.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = halftone(ctx, INK.navy, 0.45, 2.6);
+    ctx.fill();
+    ctx.restore();
+    drawAstronaut(ctx, { x: spot.x, y: spot.y, color: me.color, hat: me.hat, role: spot.role, seed: me.id, facing: spot.facing, scale: SPRITE_SCALE, alpha: 0.82 });
+    const held = g.data.parked?.[spot.role];
+    if (held) drawItem(ctx, held.item, spot.x + spot.facing * 22, spot.y - 40, time);
+    label(ctx, `${ROLES.findIndex((role) => role.id === spot.role) + 1} · ${roleName(spot.role).toUpperCase()}`, spot.x, spot.y - 170 * SPRITE_SCALE - 12, { size: 12, color: INK.navy });
+  };
   const renderTeam = (g) => {
     const list = objectives(g);
     $('.world-team').replaceChildren(...ROLES.map((role) => {
@@ -947,6 +985,18 @@ export const mountWorld = (container) => {
       dot.style.background = holder ? colorHex(holder.color) : 'transparent';
       const who = holder ? (holder.id === session.myId ? 'Tú' : holder.name) : away ? `${away.name} · sin conexión` : 'libre';
       const status = ACT_TEXT[act] ?? (entries.length ? `${done}/${entries.length}` : '—');
+      const solo = soloCrew(g.players);
+      if (solo) {
+        const mineNow = solo.role === role.id;
+        const button = /** @type {HTMLButtonElement} */ (el('button', `crew-chip crew-switch${mineNow ? ' current' : ''}${entries.length > 0 && done === entries.length ? ' done' : ''}`));
+        button.type = 'button';
+        button.disabled = mineNow;
+        button.title = mineNow ? 'Lo estás manejando' : `Manejar a ${role.name} (tecla ${ROLES.indexOf(role) + 1})`;
+        dot.style.background = mineNow ? colorHex(solo.color) : 'transparent';
+        button.append(dot, el('strong', '', `${ROLES.indexOf(role) + 1} · ${role.name}`), el('span', '', `${mineNow ? 'Tú' : 'cambiar'} · ${status}`));
+        button.addEventListener('click', () => switchTo(role.id));
+        return button;
+      }
       chip.append(dot, el('strong', '', role.name), el('span', '', `${who} · ${status}`));
       return chip;
     }));
@@ -1296,6 +1346,7 @@ export const mountWorld = (container) => {
       })),
       ...(map.rocks ?? []).map((rock) => ({ depth: rock.y + rock.h, draw: () => drawRock(ctx, rock) })),
       ...[...actors.values()].map((actor) => ({ depth: actor.y, draw: () => drawActor(actor, g, time) })),
+      ...crewSpots(g).map((spot) => ({ depth: spot.y, draw: () => drawCrew(spot, g, time) })),
     ].sort((a, b) => a.depth - b.depth);
     drawables.forEach((item) => item.draw());
 
@@ -1424,6 +1475,8 @@ export const mountWorld = (container) => {
     }
     if (event.repeat) return;
     const action = near?.actions[choice];
+    const digit = /^Digit([1-4])$/.exec(event.code);
+    if (digit) return switchTo(ROLES[Number(digit[1]) - 1].id);
     if (event.code === 'KeyE' || event.code === 'Space') {
       event.preventDefault();
       if (!action) return;
@@ -1450,6 +1503,9 @@ export const mountWorld = (container) => {
     const g = game();
     if (!g) return;
     const point = toWorld(event.clientX, event.clientY);
+    // En solitario: tocar a otro personaje pasa a manejarlo.
+    const other = crewSpots(g).find((spot) => Math.abs(point.x - spot.x) < 26 && point.y < spot.y + 8 && point.y > spot.y - 170 * SPRITE_SCALE);
+    if (other) return switchTo(other.role);
     // Clic sobre un puesto (su dibujo completo): camina hasta él y lo usa al llegar.
     const station = stationsNow(g).find((s) => !s.decor && point.x >= s.x - 6 && point.x <= s.x + s.w + 6 && point.y >= s.y - s.height - 6 && point.y <= s.y + s.h + 10);
     if (station) {
@@ -1512,7 +1568,20 @@ export const mountWorld = (container) => {
   syncActors(true);
   const offs = [
     on('state', onState),
-    on('room', () => { syncActors(false); renderHud(); }),
+    on('room', () => {
+      syncActors(false);
+      // En solitario, al cambiar de personaje apareces donde ese personaje había quedado.
+      const mine = session.room?.players.find((p) => p.id === session.myId);
+      const actor = actors.get(session.myId);
+      if (mine && actor && lastRole !== null && mine.role !== lastRole && soloCrew(session.room.players)) {
+        Object.assign(actor, { x: mine.x, y: mine.y, tx: mine.x, ty: mine.y, facing: mine.facing ?? 1, moving: false });
+        moveTarget = null;
+        route = [];
+        useOnArrival = null;
+      }
+      lastRole = mine?.role ?? null;
+      renderHud();
+    }),
     on('moved', (move) => {
       const actor = actors.get(move.id);
       if (!actor || move.id === session.myId || move.map !== mapId) return;
@@ -1527,6 +1596,7 @@ export const mountWorld = (container) => {
   resizeObserver.observe(canvas);
   offs.push(onSettings(resize)); // acercamiento y resolución
   resize();
+  lastRole = session.room?.players.find((p) => p.id === session.myId)?.role ?? null;
   enterMap(mapId, false);
   lastStage = game()?.stageId ?? null;
   onState();

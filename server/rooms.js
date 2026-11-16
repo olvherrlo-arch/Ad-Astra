@@ -209,13 +209,14 @@ const seat = (room, { socketId, clientId, name, color, hat }) => {
 };
 
 /** Lo que ven los demás de un jugador (sin su clientId, su conexión ni su seatToken). */
-export const publicPlayer = ({ id, name, color, hat, x, y, facing, map, role, ready, connected }) =>
-  ({ id, name, color, hat, x, y, facing, map, role, ready, connected });
+export const publicPlayer = ({ id, name, color, hat, x, y, facing, map, role, ready, connected, crew }) =>
+  ({ id, name, color, hat, x, y, facing, map, role, ready, connected, crew: Boolean(crew) });
 
 /** Versión de la sala que se envía a los navegadores. */
 export const toSnapshot = (room) => ({
   code: room.code,
   mode: room.mode ?? 'campaign',
+  crewSpots: room.crewSpots ?? {}, // en solitario: dónde quedó parado cada personaje que no se está manejando
   hostId: room.hostId,
   isPublic: room.isPublic,
   phase: room.phase,
@@ -245,6 +246,9 @@ const assignRoles = (room, pickRoles) => {
   const crew = [...room.players.values()];
   const picked = pickRoles(crew);
   crew.forEach((player, index) => { player.role = picked[index] ?? null; });
+  // Campaña con una sola persona: tiene la tripulación completa y cambia de personaje (el Sandbox no: es libre).
+  crew.forEach((player) => { player.crew = crew.length === 1 && room.mode !== 'sandbox'; });
+  room.crewSpots = {};
 };
 
 // ---------- Cuenta regresiva ----------
@@ -323,6 +327,7 @@ export const returnToLobby = (io, store, room) => {
   for (const [index, player] of [...room.players.values()].entries()) {
     player.ready = false;
     player.role = null;
+    player.crew = false;
     // Vuelven de la misión: aparecen otra vez en la alfombra de la sala de embarque.
     const angle = (index / MAX_PLAYERS) * Math.PI * 2;
     Object.assign(player, { x: Math.round(LOBBY_MAP.spawn.x + Math.cos(angle) * 40), y: Math.round(LOBBY_MAP.spawn.y + Math.sin(angle) * 24), map: null });

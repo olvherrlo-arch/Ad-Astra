@@ -52,7 +52,10 @@ Cambios en `server/` o en `js/shared.js` con `npm start`: detén el servidor (Ct
 
 ## Jugar solo
 
-**Play → Solo** abre una sala privada solo para ti y despega sola: manejas los cuatro roles.
+**Play → Solo** abre una sala privada solo para ti y despega sola. Los cuatro tripulantes están en el mundo y manejas
+uno a la vez: cambias con las teclas **1 a 4**, tocando al personaje o tocando su ficha en la lista del equipo. Cada uno
+se queda donde lo dejaste y con lo que llevaba en las manos. Las tareas de los cuatro cuentan: nadie las hace por ti.
+Así se puede terminar la campaña completa (Luna, Marte y las arcas) sin otros jugadores.
 
 ## Misión 2: Life on Mars
 

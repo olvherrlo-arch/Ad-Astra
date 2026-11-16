@@ -267,6 +267,14 @@ Universe, 4 arcas John/Ringo/George/Paul: no renombrar) → 5 integración. No e
   `landing` (playLander). Puntaje: `finalizeFleet` en server/score.js (`final.fleet`). Cliente: js/fleetview.js
   (mesa de recursos, pestaña "Las cuatro arcas"), pintores ark/colonysite/monument/fleetmap en js/worldart.js (dibujan
   solo lo ya hecho), `resultOf(data)` en js/world.js, `playLightning(then, 'finale')`. Pruebas: tests/exodus.js (48).
-- Falta (hito 5 y más): cambio de personaje en solitario (4 personajes en el mundo), tutoriales de Marte/arcas/Sandbox,
-  probar con 2 a 4 navegadores y en teléfono, jugar a mano los minijuegos nuevos, dónde va `starman.png`.
-
+- Hito 5 HECHO (integración): CAMPAÑA EN SOLITARIO con cuatro personajes. Sala de campaña con una sola persona →
+  `player.crew = true` (server/rooms.js `assignRoles`; el Sandbox no). `soloCrew(players)` en js/shared.js cambia
+  `roleHolder` (los cuatro roles tienen dueña: todas las tareas cuentan) y `canActAs` (solo con el personaje que se
+  maneja). Acción `crew:switch { role }` (se atiende en `registerGameHandlers`, fuera de applyAction): guarda dónde
+  queda el personaje (`room.crewSpots[rol]`, va en el snapshot), mueve lo que llevaba a `data.parked[rol]` y trae lo
+  del nuevo; las tareas no cambian. Cliente (js/world.js): `crewSpots(g)` dibuja a los otros tres, `switchTo` con
+  teclas 1 a 4, tocando al personaje o las fichas `.crew-switch` del equipo. Ojo: las pruebas de escritorio en
+  solitario (mars/exodus/sandbox) usan `canActAs: () => true` a nivel de reglas; el cambio de personaje se prueba en
+  tests/simulate.js §10. Tutoriales nuevos en js/tutorials.js: solo, sandbox, mars, arks.
+- Falta: probar con 2 a 4 navegadores reales y en un teléfono real, jugar a mano los minijuegos nuevos (aterrizaje en
+  Marte, rayo, aterrizaje del arca), afinar el balance con gente, decidir dónde va `starman.png`.

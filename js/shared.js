@@ -58,14 +58,29 @@ export const ROLES = [
 export const isRoleId = (value) => ROLES.some((r) => r.id === value);
 export const roleName = (id) => ROLES.find((r) => r.id === id)?.name ?? '';
 
+/**
+ * Campaña en solitario: una sola persona con la tripulación completa (`crew`). Los cuatro personajes están en
+ * el mundo y ella maneja uno a la vez: para hacer el trabajo de otro rol, cambia de personaje (`crew:switch`).
+ * Devuelve a esa jugadora, o null si no es una partida en solitario.
+ */
+export const soloCrew = (players) => (players.length === 1 && players[0].crew ? players[0] : null);
+
 /** Quién maneja un rol ahora mismo (un jugador sin conexión no cuenta). `players` es una lista. */
-export const roleHolder = (players, roleId) => players.find((p) => p.role === roleId && p.connected !== false);
+export const roleHolder = (players, roleId) => {
+  // En solitario los cuatro roles tienen dueña: sus tareas cuentan todas, no son opcionales.
+  const solo = soloCrew(players);
+  if (solo) return solo.connected !== false ? solo : undefined;
+  return players.find((p) => p.role === roleId && p.connected !== false);
+};
 
 /**
  * ¿Este jugador puede actuar con este rol? Sí si es el suyo, o si nadie conectado lo tiene
  * (modo demo con menos de 4 jugadores, o para cubrir a quien perdió la conexión).
  */
 export const canActAs = (players, playerId, roleId) => {
+  // En solitario se actúa con el personaje que se está manejando.
+  const solo = soloCrew(players);
+  if (solo) return solo.id === playerId && solo.role === roleId;
   const holder = roleHolder(players, roleId);
   return holder ? holder.id === playerId : players.some((p) => p.id === playerId);
 };
