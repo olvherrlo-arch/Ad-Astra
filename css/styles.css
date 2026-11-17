@@ -1951,17 +1951,27 @@ button.crew-switch:not(:disabled):hover { transform: translateX(-3px); }
 .credits-screen::before, .credits-screen::after { content: ''; position: absolute; left: 0; right: 0; z-index: 3; height: 8vh; background: #050a1c; }
 .credits-screen::before { top: 0; }
 .credits-screen::after { bottom: 0; }
-.credits-roll { position: absolute; inset: 8vh 0; z-index: 2; display: grid; align-content: start; justify-items: center; gap: clamp(28px, 6vh, 56px); padding: 6vh 20px; overflow-y: auto; text-align: center; }
+/* Abajo deja lugar para la tripulación que camina (js/credits.js), así no tapa el último texto. */
+.credits-roll { position: absolute; inset: 8vh 0; z-index: 2; display: grid; align-content: start; justify-items: center; gap: clamp(28px, 6vh, 56px); padding: 6vh 20px 96px; overflow-y: auto; text-align: center; }
 .credits-head { display: grid; justify-items: center; gap: 2px; animation: credits-rise 1s ease-out both; }
 .credits-star { width: 38px; animation: credits-spin 9s linear infinite; }
 .credits-kicker, .credits-motto { margin: 0; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.32em; text-transform: uppercase; color: #f3b641; }
 .credits-title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(3.2rem, 11vw, 7rem); line-height: 0.95; letter-spacing: 0.04em; text-shadow: 5px 5px 0 #ff6b5b; }
-.credits-list { display: grid; gap: clamp(22px, 5vh, 44px); margin: 0; padding: 0; list-style: none; }
-.credits-entry { position: relative; display: grid; gap: 4px; padding: 0 clamp(16px, 4vw, 40px) 14px; animation: credits-rise 0.9s ease-out both; animation-delay: calc(0.7s + var(--i) * 0.55s); }
-.credits-entry::after { content: ''; position: absolute; left: 50%; bottom: 0; width: 46px; height: 3px; translate: -50% 0; background: #5cc2b4; border-radius: 2px; }
-.credits-role { margin: 0; font-size: clamp(0.9rem, 1.8vw, 1.1rem); font-weight: 600; font-style: italic; letter-spacing: 0.08em; color: #5cc2b4; }
-.credits-name { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.5rem, 4.4vw, 2.6rem); line-height: 1.05; letter-spacing: 0.03em; overflow-wrap: anywhere; }
-.credits-end { margin: 0; font-size: 0.9rem; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(244, 236, 217, 0.7); animation: credits-rise 1s ease-out both; animation-delay: 4s; }
+/* Todo el equipo por igual: tarjetas del mismo tamaño, en fila, que aparecen juntas. */
+/* Cuatro en fila, o dos y dos, o uno debajo del otro: nunca tres arriba y uno solo abajo. Todas de la misma altura. */
+.credits-list { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 1fr; gap: clamp(14px, 2.4vw, 24px); width: min(100%, 1180px); margin: 0; padding: 0; list-style: none; }
+.credits-by { margin-bottom: calc(-1 * clamp(14px, 4vh, 40px)); }
+.credits-entry { display: grid; align-content: center; justify-items: center; gap: 10px; padding: 26px 16px; background: rgba(11, 18, 48, 0.72); border: 2px solid rgba(244, 236, 217, 0.7); border-radius: 10px; box-shadow: 5px 5px 0 #ff6b5b; backdrop-filter: blur(2px); animation: credits-rise 0.9s ease-out 0.7s both, credits-float 6s ease-in-out 1.6s infinite alternate; }
+.credits-entry:nth-child(2n) { animation-delay: 0.7s, 2.6s; }
+.credits-name { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(1.25rem, 2.2vw, 1.6rem); line-height: 1.1; letter-spacing: 0.03em; overflow-wrap: anywhere; }
+@media (max-width: 1080px) { .credits-list { grid-template-columns: repeat(2, 1fr); width: min(100%, 680px); } }
+@media (max-width: 560px) { .credits-list { grid-template-columns: 1fr; } }
+@keyframes credits-float { to { transform: translateY(-6px); } }
+.credits-planet { position: absolute; left: 6vw; top: 14vh; width: clamp(110px, 16vw, 200px); overflow: visible; opacity: 0.55; animation: credits-drift 18s ease-in-out infinite alternate; }
+.credits-planet-body { fill: #ff6b5b; stroke: #f4ecd9; stroke-width: 3; }
+.credits-planet-ring { fill: none; stroke: #f3b641; stroke-width: 4; stroke-dasharray: 320 160; stroke-linecap: round; }
+@keyframes credits-drift { from { transform: translate(0, 0) rotate(-6deg); } to { transform: translate(24px, 18px) rotate(6deg); } }
+.credits-end { margin: 0; font-size: 0.9rem; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(244, 236, 217, 0.7); animation: credits-rise 1s ease-out both; animation-delay: 1.8s; }
 .credits-back { position: absolute; left: 16px; top: calc(8vh + 12px); z-index: 4; background: #f3b641; }
 @keyframes credits-rise { from { opacity: 0; transform: translateY(26px); } }
 @keyframes credits-spin { to { rotate: 360deg; } }

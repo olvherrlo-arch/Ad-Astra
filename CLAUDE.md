@@ -112,7 +112,9 @@ Cada rol hace cosas con las manos, la cooperación es necesaria y nadie espera s
   `cameraZoom` (mundo), `cameraShake`, `quality` (dpr de los lienzos), `textSize` (font-size de :root),
   `reduceMotion`/`reduceEffects` (html[data-motion|data-effects] en css sección 12). No agregar opciones que
   no hagan nada.
-- Créditos: `js/credits.js` (`CREDITS` con los 5 nombres EXACTOS que pidió el usuario; no cambiarlos).
+- Créditos: `js/credits.js` (`CREDITS` = los 4 nombres EXACTOS del equipo; no cambiarlos). Pedido del usuario: todos
+  POR IGUAL, sin roles: tarjetas del mismo tamaño en orden alfabético bajo "Un juego de", en 4, 2 o 1 columnas;
+  fondo animado (estrellas que titilan, cometas, planeta con anillo, la tripulación caminando abajo).
 - Trajes por rol: `js/character.js` `drawAstronaut({ role })` + `ROLE_GEAR` (equipo dibujado encima del
   sprite del usuario, que no se toca). Sale de `player.role`: en el lobby no hay. Mundo, revelación de roles
   (retrato `plain` → `suited` al darse vuelta la carta) y resultados lo usan.
